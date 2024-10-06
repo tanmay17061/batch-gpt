@@ -1,19 +1,24 @@
 import os
+import argparse
 from openai import OpenAI
 
-# Create a custom OpenAI client that points to the batch-gpt server.
-client = OpenAI(
-    api_key="dummy_api_key",
-    base_url="http://localhost:8080/v1"
-)
-
 def main():
+    parser = argparse.ArgumentParser(description="Send a chat completion request to the batch-gpt server.")
+    parser.add_argument("content", help="The content to send in the chat completion request.")
+    args = parser.parse_args()
+
+    # Create a custom OpenAI client that points to the batch-gpt server.
+    client = OpenAI(
+        api_key="dummy_api_key",
+        base_url="http://localhost:8080/v1"
+    )
+
     try:
         chat_completion = client.chat.completions.create(
             messages=[
                 {
                     "role": "user",
-                    "content": "Tell me a joke about Gandalf and the Balrog.",
+                    "content": args.content,
                 }
             ],
             model="gpt-3.5-turbo",

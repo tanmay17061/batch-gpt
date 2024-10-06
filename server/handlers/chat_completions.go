@@ -1,31 +1,29 @@
 package handlers
 
 import (
-	"net/http"
-
-	"batch-gpt/server/models"
-	"batch-gpt/server/services"
-
-	"github.com/gin-gonic/gin"
-	openai "github.com/sashabaranov/go-openai"
+    "net/http"
+    "github.com/gin-gonic/gin"
+    openai "github.com/sashabaranov/go-openai"
+    "batch-gpt/server/services"
 )
 
 func HandleChatCompletions(c *gin.Context) {
-	var request openai.ChatCompletionRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    var request openai.ChatCompletionRequest
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	batchRequest := models.BatchRequest{
-		Requests: []openai.ChatCompletionRequest{request},
-	}
+    resultChan := services.AddRequestToBatch(request)
 
-	response, err := services.ProcessBatch(batchRequest)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, response)
+    select {
+    case result := <-resultChan:
+        if result.Error != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+        } else {
+            c.JSON(http.StatusOK, result.Response)
+        }
+    case <-c.Request.Context().Done():
+        c.JSON(http.StatusRequestTimeout, gin.H{"error": "Request timeout"})
+    }
 }

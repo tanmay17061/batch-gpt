@@ -1,6 +1,7 @@
 package services
 
 import (
+	"batch-gpt/server/logger"
 	"batch-gpt/server/models"
 	"bytes"
 	"context"
@@ -14,89 +15,96 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-func ProcessBatch(batchRequest models.BatchRequest) (openai.ChatCompletionResponse, error) {
-	request := batchRequest.Requests[0]
+func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResponse, error) {
+    client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+    batchChatRequest := openai.CreateBatchWithUploadFileRequest{
+        Endpoint: openai.BatchEndpointChatCompletions,
+        CompletionWindow: "24h", // Adjust as needed
+        UploadBatchFileRequest: openai.UploadBatchFileRequest{
+            FileName: "batch_request.jsonl",
+            Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
+        },
+    }
 
-	batchChatRequest := openai.CreateBatchWithUploadFileRequest{
-		Endpoint:         openai.BatchEndpointChatCompletions,
-		CompletionWindow: "24h",
-		UploadBatchFileRequest: openai.UploadBatchFileRequest{
-			FileName: "batch_request.jsonl",
-			Lines: []openai.BatchLineItem{
-				openai.BatchChatCompletionRequest{
-					CustomID: "request_1",
-					Body:     request,
-					Method:   "POST",
-					URL:      openai.BatchEndpointChatCompletions,
-				},
-			},
-		},
-	}
+    for i, request := range batchRequest.Requests {
+        batchChatRequest.UploadBatchFileRequest.Lines[i] = openai.BatchChatCompletionRequest{
+            CustomID: fmt.Sprintf("request_%d", i+1),
+            Body:     request,
+            Method:   "POST",
+            URL:      openai.BatchEndpointChatCompletions,
+        }
+    }
 
-	batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
-	if err != nil {
-		return openai.ChatCompletionResponse{}, err
-	}
+    batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create batch: %w", err)
+    }
 
-	return PollAndCollectBatchResponse(client, batchResponse.ID)
+    return PollAndCollectBatchResponses(client, batchResponse.ID)
 }
 
-func PollAndCollectBatchResponse(client *openai.Client, batchID string) (openai.ChatCompletionResponse, error) {
+func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
 	ctx := context.Background()
-	maxRetries := 30
-	retryInterval := 2 * time.Second
+	maxRetries := 60 // Increased for longer batches
+	retryInterval := 5 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
 		batchStatus, err := client.RetrieveBatch(ctx, batchID)
 		if err != nil {
-			return openai.ChatCompletionResponse{}, err
+			return nil, fmt.Errorf("failed to retrieve batch status: %w", err)
 		}
 
 		if batchStatus.Status == "completed" {
 			if batchStatus.OutputFileID == nil {
-				return openai.ChatCompletionResponse{}, errors.New("output file ID is missing")
+				return nil, errors.New("output file ID is missing")
 			}
 
 			rawResponse, err := client.GetFileContent(ctx, *batchStatus.OutputFileID)
 			if err != nil {
-				return openai.ChatCompletionResponse{}, err
+				return nil, fmt.Errorf("failed to get file content: %w", err)
 			}
 			defer rawResponse.Close()
 
 			content, err := io.ReadAll(rawResponse)
 			if err != nil {
-				return openai.ChatCompletionResponse{}, err
+				return nil, fmt.Errorf("failed to read response content: %w", err)
 			}
 
 			lines := bytes.Split(content, []byte("\n"))
-			if len(lines) == 0 {
-				return openai.ChatCompletionResponse{}, errors.New("empty response file")
+			responses := make([]openai.ChatCompletionResponse, 0, len(lines))
+
+			for l_i, line := range lines {
+				if len(line) == 0 {
+					continue // Skip empty lines
+				}
+
+				logger.InfoLogger.Printf("Line %d contents: %s", l_i+1, string(line))
+				var batchResponseItem models.BatchResponseItem
+				if err := json.Unmarshal(line, &batchResponseItem); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal response item: %w", err)
+				}
+
+				if batchResponseItem.Response.StatusCode != 200 {
+					return nil, fmt.Errorf("API error for item %s: status code %d", batchResponseItem.CustomID, batchResponseItem.Response.StatusCode)
+				}
+
+				if batchResponseItem.Response.Error != nil {
+					return nil, fmt.Errorf("API error for item %s: %v", batchResponseItem.CustomID, batchResponseItem.Response.Error)
+				}
+
+				responses = append(responses, batchResponseItem.Response.Body)
 			}
 
-			var batchResponseItem models.BatchResponseItem
-			if err := json.Unmarshal(lines[0], &batchResponseItem); err != nil {
-				return openai.ChatCompletionResponse{}, fmt.Errorf("failed to unmarshal response: %w", err)
-			}
-
-			if batchResponseItem.Response.StatusCode != 200 {
-				return openai.ChatCompletionResponse{}, fmt.Errorf("API error: status code %d", batchResponseItem.Response.StatusCode)
-			}
-
-			if batchResponseItem.Response.Error != nil {
-				return openai.ChatCompletionResponse{}, fmt.Errorf("API error: %v", batchResponseItem.Response.Error)
-			}
-
-			return batchResponseItem.Response.Body, nil
+			return responses, nil
 		}
 
 		if batchStatus.Status == "failed" || batchStatus.Status == "cancelled" {
-			return openai.ChatCompletionResponse{}, errors.New("batch processing failed or was cancelled")
+			return nil, fmt.Errorf("batch processing %s", batchStatus.Status)
 		}
 
 		time.Sleep(retryInterval)
 	}
 
-	return openai.ChatCompletionResponse{}, errors.New("max retries reached, batch processing did not complete in time")
+	return nil, errors.New("max retries reached, batch processing did not complete in time")
 }
