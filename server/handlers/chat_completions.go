@@ -3,10 +3,11 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	openai "github.com/sashabaranov/go-openai"
 	"batch-gpt/server/models"
 	"batch-gpt/server/services"
+
+	"github.com/gin-gonic/gin"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 func HandleChatCompletions(c *gin.Context) {

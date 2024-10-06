@@ -13,7 +13,7 @@ def main():
             messages=[
                 {
                     "role": "user",
-                    "content": "Say this is a test",
+                    "content": "Tell me a joke about Gandalf and the Balrog.",
                 }
             ],
             model="gpt-3.5-turbo",
