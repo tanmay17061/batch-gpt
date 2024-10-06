@@ -47,6 +47,12 @@ func InitBatchOrchestrator() {
 
 func (bo *BatchOrchestrator) startProcessing() {
     bo.processingTicker = time.NewTicker(bo.batchDuration)
+    
+    // This loop runs indefinitely, processing batches at regular intervals.
+    // The ticker fires every batchDuration, regardless of whether there are requests to process.
+    // If there are no requests when the ticker fires, processBatch() will return early.
+    // This approach ensures consistent batch processing intervals but may lead to some
+    // unnecessary wake-ups when there are no requests to process.
     for range bo.processingTicker.C {
         bo.processBatch()
     }
