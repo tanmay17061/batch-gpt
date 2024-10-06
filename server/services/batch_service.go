@@ -20,7 +20,7 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 
     batchChatRequest := openai.CreateBatchWithUploadFileRequest{
         Endpoint: openai.BatchEndpointChatCompletions,
-        CompletionWindow: "24h", // Adjust as needed
+        CompletionWindow: "24h",
         UploadBatchFileRequest: openai.UploadBatchFileRequest{
             FileName: "batch_request.jsonl",
             Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
@@ -46,7 +46,7 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 
 func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
 	ctx := context.Background()
-	maxRetries := 60 // Increased for longer batches
+	maxRetries := 60
 	retryInterval := 5 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
@@ -76,7 +76,8 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 
 			for l_i, line := range lines {
 				if len(line) == 0 {
-					continue // Skip empty lines
+					// Skip empty lines
+					continue
 				}
 
 				logger.InfoLogger.Printf("Line %d contents: %s", l_i+1, string(line))
