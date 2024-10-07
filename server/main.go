@@ -14,7 +14,7 @@ func main() {
 	services.InitBatchOrchestrator()
 
 	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
-
+	r.GET("/get-batch-status", handlers.HandleGetBatchStatus)
 
 	log.Println("Server starting on :8080")
 	if err := r.Run(":8080"); err != nil {
