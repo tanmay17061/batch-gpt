@@ -1,6 +1,7 @@
 package services
 
 import (
+	"batch-gpt/server/db"
 	"batch-gpt/server/logger"
 	"batch-gpt/server/models"
 	"bytes"
@@ -16,32 +17,38 @@ import (
 )
 
 func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResponse, error) {
-    client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-    batchChatRequest := openai.CreateBatchWithUploadFileRequest{
-        Endpoint: openai.BatchEndpointChatCompletions,
-        CompletionWindow: "24h",
-        UploadBatchFileRequest: openai.UploadBatchFileRequest{
-            FileName: "batch_request.jsonl",
-            Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
-        },
-    }
+	batchChatRequest := openai.CreateBatchWithUploadFileRequest{
+		Endpoint:         openai.BatchEndpointChatCompletions,
+		CompletionWindow: "24h",
+		UploadBatchFileRequest: openai.UploadBatchFileRequest{
+			FileName: "batch_request.jsonl",
+			Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
+		},
+	}
 
-    for i, request := range batchRequest.Requests {
-        batchChatRequest.UploadBatchFileRequest.Lines[i] = openai.BatchChatCompletionRequest{
-            CustomID: fmt.Sprintf("request_%d", i+1),
-            Body:     request,
-            Method:   "POST",
-            URL:      openai.BatchEndpointChatCompletions,
-        }
-    }
+	for i, request := range batchRequest.Requests {
+		batchChatRequest.UploadBatchFileRequest.Lines[i] = openai.BatchChatCompletionRequest{
+			CustomID: fmt.Sprintf("request_%d", i+1),
+			Body:     request,
+			Method:   "POST",
+			URL:      openai.BatchEndpointChatCompletions,
+		}
+	}
 
-    batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
+	batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create batch: %w", err)
+	}
+
+	// Log initial batch status
+    err = db.LogBatchStatus(batchResponse.ID, batchResponse.Status, batchResponse.InputFileID, nil, batchResponse.RequestCounts)
     if err != nil {
-        return nil, fmt.Errorf("failed to create batch: %w", err)
+        logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
     }
 
-    return PollAndCollectBatchResponses(client, batchResponse.ID)
+	return PollAndCollectBatchResponses(client, batchResponse.ID)
 }
 
 func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
@@ -54,6 +61,15 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve batch status: %w", err)
 		}
+
+		logger.InfoLogger.Printf("Batch Status: ID=%s, Status=%s, InputFileID=%s, OutputFileID=%v, RequestCounts=%+v",
+			batchStatus.ID, batchStatus.Status, batchStatus.InputFileID, batchStatus.OutputFileID, batchStatus.RequestCounts)
+
+		// Log current batch status
+        err = db.LogBatchStatus(batchID, batchStatus.Status, batchStatus.InputFileID, batchStatus.OutputFileID, batchStatus.RequestCounts)
+        if err != nil {
+            logger.WarnLogger.Printf("Failed to log batch status: %v", err)
+        }
 
 		if batchStatus.Status == "completed" {
 			if batchStatus.OutputFileID == nil {
