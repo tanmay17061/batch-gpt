@@ -8,7 +8,7 @@
 *.so
 *.dylib
 
-*.db
+mongodb_data
 
 # Test binary, built with `go test -c`
 *.test

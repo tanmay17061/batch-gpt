@@ -3,26 +3,48 @@ package handlers
 import (
 	"batch-gpt/server/db"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	openai "github.com/sashabaranov/go-openai"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func HandleGetBatchStatus(c *gin.Context) {
-    batchID := c.Query("batch_id")
+func HandleRetrieveBatch(c *gin.Context) {
+    batchID := strings.TrimPrefix(c.Param("batch_id"), "/")
     if batchID == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "batch_id is required"})
-        return
+    c.JSON(http.StatusBadRequest, openai.ErrorResponse{
+	        Error: &openai.APIError{
+	            Type: "invalid_request_error",
+	            Message: "Missing batch_id parameter",
+	        },
+	    })
+	    return
     }
 
-    status, counts, err := db.GetLatestBatchStatus(batchID)
+    batchStatus, err := db.GetLatestBatchStatus(batchID)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve batch status"})
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, openai.ErrorResponse{
+                Error: &openai.APIError{
+                    Type: "invalid_request_error",
+                    Message: "No such batch",
+                },
+            })
+        } else {
+            c.JSON(http.StatusInternalServerError, openai.ErrorResponse{
+                Error: &openai.APIError{
+                    Type: "internal_server_error",
+                    Message: "Failed to retrieve batch status",
+                },
+            })
+        }
         return
     }
+    // Convert the Batch to BatchResponse
+    response := openai.BatchResponse{
+        Batch: batchStatus,
+    }
 
-    c.JSON(http.StatusOK, gin.H{
-        "batch_id": batchID,
-        "status": status,
-        "request_counts": counts,
-    })
+    c.JSON(http.StatusOK, response)
 }

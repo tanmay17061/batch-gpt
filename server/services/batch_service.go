@@ -43,7 +43,7 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 	}
 
 	// Log initial batch status
-    err = db.LogBatchStatus(batchResponse.ID, batchResponse.Status, batchResponse.InputFileID, nil, batchResponse.RequestCounts)
+	err = db.LogBatchResponse(batchResponse)
     if err != nil {
         logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
     }
@@ -66,7 +66,7 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 			batchStatus.ID, batchStatus.Status, batchStatus.InputFileID, batchStatus.OutputFileID, batchStatus.RequestCounts)
 
 		// Log current batch status
-        err = db.LogBatchStatus(batchID, batchStatus.Status, batchStatus.InputFileID, batchStatus.OutputFileID, batchStatus.RequestCounts)
+		err = db.LogBatchResponse(batchStatus)
         if err != nil {
             logger.WarnLogger.Printf("Failed to log batch status: %v", err)
         }
