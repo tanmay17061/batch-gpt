@@ -78,8 +78,9 @@ A Python test client is provided in the `test-python-client` directory.
 
 2. Run the test client:
    ```
-   python client.py "Your message here"
+   python client.py "Write a joke on Gandalf and Saruman"
    ```
+   > **Note:** To effectively utilize batching, run multiple instances of the Python client simultaneously. This simulates concurrent requests, allowing the server to group them into batches for processing.
 
 ## Development
 
