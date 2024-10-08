@@ -47,7 +47,7 @@ The server will start on `http://localhost:8080`.
 
 ### Sending Chat Completion Requests
 
-You can send requests to the batch-gpt server using any existing openai client!
+You can send requests to the batch-gpt server using any existing openai client.
 
 #### Using curl
 Send POST requests to `/v1/chat/completions` with the same format as the OpenAI API. For example:
@@ -92,11 +92,44 @@ print(chat_completion.choices[0].message.content)
 
 ### Checking Batch Status
 
+You can check the status of a batch using any existing openai client.
+
+#### Using curl
+
 To check the status of a batch, send a GET request to `/v1/batches/{batch_id}`:
 
 ```bash
 curl http://localhost:8080/v1/batches/{your_batch_id_here}
 ```
+
+#### Using OpenAI Python Client
+
+You can also use the OpenAI Python client to check the batch status. Here's an example:
+
+```python
+from openai import OpenAI
+
+# Create a custom OpenAI client that points to the batch-gpt server
+client = OpenAI(
+    api_key="dummy_api_key",  # The API key is not used by batch-gpt, but is required by the client
+    base_url="http://localhost:8080/v1"  # Point to your batch-gpt server
+)
+
+# Retrieve the batch status
+batch_id = "your_batch_id_here"
+batch_status = client.batches.retrieve(batch_id)
+
+# Print the batch status
+print(f"Batch ID: {batch_status.id}")
+print(f"Status: {batch_status.status}")
+print(f"Created At: {batch_status.created_at}")
+print(f"Expires At: {batch_status.expires_at}")
+print(f"Request Counts: {batch_status.request_counts}")
+```
+
+Replace `"your_batch_id_here"` with the actual batch ID you want to check.
+
+This code will connect to your local batch-gpt server and retrieve the status of the specified batch. The response will include details such as the batch ID, status, creation time, expiration time, and request counts.
 
 ## Testing with Python Client
 
