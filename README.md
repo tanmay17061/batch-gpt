@@ -47,6 +47,9 @@ The server will start on `http://localhost:8080`.
 
 ### Sending Chat Completion Requests
 
+You can send requests to the batch-gpt server using any existing openai client!
+
+#### Using curl
 Send POST requests to `/v1/chat/completions` with the same format as the OpenAI API. For example:
 
 ```bash
@@ -58,12 +61,41 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
+#### Using OpenAI Python Library
+
+Make sure you have the OpenAI Python library installed:
+
+```bash
+pip install openai
+```
+
+```python
+from openai import OpenAI
+
+# Create a custom OpenAI client that points to the batch-gpt server
+client = OpenAI(
+    api_key="dummy_api_key",  # The API key is not used by batch-gpt, but is required by the client
+    base_url="http://localhost:8080/v1"  # Point to your batch-gpt server
+)
+
+# Send a chat completion request
+chat_completion = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ]
+)
+
+# Print the response
+print(chat_completion.choices[0].message.content)
+```
+
 ### Checking Batch Status
 
 To check the status of a batch, send a GET request to `/v1/batches/{batch_id}`:
 
 ```bash
-curl http://localhost:8080/v1/batches/your_batch_id_here
+curl http://localhost:8080/v1/batches/{your_batch_id_here}
 ```
 
 ## Testing with Python Client
