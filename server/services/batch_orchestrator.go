@@ -6,6 +6,7 @@ import (
     "time"
     "os"
     "strconv"
+    "batch-gpt/server/db"
     "batch-gpt/server/models"
     "batch-gpt/server/logger"
     openai "github.com/sashabaranov/go-openai"
@@ -43,6 +44,7 @@ func InitBatchOrchestrator() {
     }
 
     go orchestrator.startProcessing()
+    go BackgroundContinueDanglingBatches()
 }
 
 func (bo *BatchOrchestrator) startProcessing() {
@@ -111,4 +113,34 @@ func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-
 
 func AddRequestToBatch(request openai.ChatCompletionRequest) <-chan BatchResult {
     return orchestrator.AddRequest(request)
+}
+
+func BackgroundContinueDanglingBatches() {
+    logger.InfoLogger.Println("Starting to process dangling batches")
+    danglingBatches, err := db.GetDanglingBatches()
+    if err != nil {
+        logger.ErrorLogger.Printf("Failed to get dangling batches: %v", err)
+        return
+    }
+
+    logger.InfoLogger.Printf("Found %d dangling batches", len(danglingBatches))
+
+    for _, batchID := range danglingBatches {
+        go func(id string) {
+            logger.InfoLogger.Printf("Processing dangling batch: %s", id)
+            client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+            responses, err := PollAndCollectBatchResponses(client, id)
+            if err != nil {
+                logger.ErrorLogger.Printf("Failed to process dangling batch %s: %v", id, err)
+                return
+            }
+            logger.InfoLogger.Printf("Successfully processed dangling batch: %s", id)
+            err = db.CacheResponses(id, responses)
+            if err != nil {
+                logger.ErrorLogger.Printf("Failed to cache responses for batch %s: %v", id, err)
+            } else {
+                logger.InfoLogger.Printf("Cached responses for batch: %s", id)
+            }
+        }(batchID)
+    }
 }

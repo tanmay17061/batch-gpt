@@ -1,18 +1,21 @@
 package db
 
 import (
+	"batch-gpt/server/logger"
 	"context"
+	"fmt"
 	"log"
 	"time"
 
+	openai "github.com/sashabaranov/go-openai"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	openai "github.com/sashabaranov/go-openai"
 )
 
 var client *mongo.Client
 var batchCollection *mongo.Collection
+var cachedResponsesCollection *mongo.Collection
 
 func InitMongoDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -30,7 +33,7 @@ func InitMongoDB() {
 	}
 
 	database := client.Database("batchgpt")
-	
+
 	// Check if the collection exists
 	collections, err := database.ListCollectionNames(ctx, bson.M{"name": "batch_logs"})
 	if err != nil {
@@ -62,6 +65,8 @@ func InitMongoDB() {
 		batchCollection = database.Collection("batch_logs")
 		log.Println("'batch_logs' collection already exists, assuming index is present")
 	}
+
+	cachedResponsesCollection = database.Collection("cached_responses")
 
 	log.Println("Connected to MongoDB")
 }
@@ -100,4 +105,66 @@ func GetLatestBatchStatus(batchID string) (openai.Batch, error) {
     }
 
     return result.Batch, nil
+}
+
+func GetDanglingBatches() ([]string, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // First, get all unique batch IDs
+    pipeline := mongo.Pipeline{
+        {{Key: "$group", Value: bson.D{{Key: "_id", Value: "$batch.id"}}}},
+    }
+
+    cursor, err := batchCollection.Aggregate(ctx, pipeline)
+    if err != nil {
+        return nil, fmt.Errorf("failed to aggregate unique batch IDs: %w", err)
+    }
+    defer cursor.Close(ctx)
+
+    var results []struct {
+        ID string `bson:"_id"`
+    }
+    if err = cursor.All(ctx, &results); err != nil {
+        return nil, fmt.Errorf("failed to decode aggregate results: %w", err)
+    }
+
+    var danglingBatches []string
+
+    for _, result := range results {
+        batchID := result.ID
+        latestStatus, err := GetLatestBatchStatus(batchID)
+        if err != nil {
+            logger.WarnLogger.Printf("Failed to get latest status for batch %s: %v", batchID, err)
+            continue
+        }
+
+        if latestStatus.Status != "completed" && latestStatus.Status != "failed" {
+            danglingBatches = append(danglingBatches, batchID)
+        }
+    }
+
+    return danglingBatches, nil
+}
+
+func CacheResponses(batchID string, responses []openai.ChatCompletionResponse) error {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    var documents []interface{}
+    for _, response := range responses {
+        document := bson.M{
+            "batch_id":  batchID,
+            "response":  response,
+            "timestamp": time.Now(),
+        }
+        documents = append(documents, document)
+    }
+
+    _, err := cachedResponsesCollection.InsertMany(ctx, documents)
+    if err != nil {
+        return fmt.Errorf("failed to insert cached responses: %w", err)
+    }
+
+    return nil
 }
