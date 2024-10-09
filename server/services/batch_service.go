@@ -48,7 +48,24 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
         logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
     }
 
-	return PollAndCollectBatchResponses(client, batchResponse.ID)
+	responses, err := PollAndCollectBatchResponses(client, batchResponse.ID)
+	if err != nil {
+        logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchResponse.ID, err)
+        return responses, err
+    }
+
+    logger.InfoLogger.Printf("Successfully processed live batch: %s", batchResponse.ID)
+    
+    go func() {
+        err := db.CacheResponses(batchResponse.ID, responses)
+        if err != nil {
+            logger.ErrorLogger.Printf("Failed to cache responses for live batch %s: %v", batchResponse.ID, err)
+        } else {
+            logger.InfoLogger.Printf("Cached responses for live batch: %s", batchResponse.ID)
+        }
+    }()
+
+    return responses, err
 }
 
 func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
