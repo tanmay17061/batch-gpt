@@ -2,7 +2,7 @@
 A jump-server to convert openai chat completion api requests to batched chat completion requests
 
 It really is as simple as
-```git
+```diff
 - client = OpenAI(api_key="sk-...")
 + client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt/v1")
 ```
