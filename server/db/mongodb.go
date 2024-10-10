@@ -2,6 +2,7 @@ package db
 
 import (
 	"batch-gpt/server/logger"
+
 	"context"
 	"fmt"
 	"log"
@@ -167,4 +168,30 @@ func CacheResponses(batchID string, responses []openai.ChatCompletionResponse) e
     }
 
     return nil
+}
+
+func GetAllBatchStatuses() ([]openai.BatchResponse, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    pipeline := mongo.Pipeline{
+        {{Key: "$sort", Value: bson.D{{Key: "batch.created_at", Value: -1}}}},
+        {{Key: "$group", Value: bson.D{
+            {Key: "_id", Value: "$batch.id"},
+            {Key: "batch", Value: bson.D{{Key: "$first", Value: "$batch"}}},
+        }}},
+    }
+
+    cursor, err := batchCollection.Aggregate(ctx, pipeline)
+    if err != nil {
+        return nil, fmt.Errorf("failed to aggregate batch statuses: %w", err)
+    }
+    defer cursor.Close(ctx)
+
+    var results []openai.BatchResponse
+    if err = cursor.All(ctx, &results); err != nil {
+        return nil, fmt.Errorf("failed to decode aggregate results: %w", err)
+    }
+
+    return results, nil
 }

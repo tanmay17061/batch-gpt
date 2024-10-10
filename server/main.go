@@ -18,6 +18,7 @@ func main() {
 
 	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
 	r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
+	r.GET("/v1/batches", handlers.HandleListBatches)
 
 	log.Println("Server starting on :8080")
 	if err := r.Run(":8080"); err != nil {

@@ -48,3 +48,20 @@ func HandleRetrieveBatch(c *gin.Context) {
 
     c.JSON(http.StatusOK, response)
 }
+
+func HandleListBatches(c *gin.Context) {
+    batchStatuses, err := db.GetAllBatchStatuses()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, openai.ErrorResponse{
+            Error: &openai.APIError{
+                Type:    "internal_server_error",
+                Message: "Failed to retrieve batch statuses",
+            },
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "data": batchStatuses,
+    })
+}

@@ -19,13 +19,13 @@ import (
 var maxRetryIntervalSeconds time.Duration
 
 func InitPollingParameters() {
- maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_POLLING_MAX_INTERVAL_SECONDS") + "s")
- if err != nil {
-  logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
-  maxRetryIntervalSeconds = 300 * time.Second
- } else {
-  maxRetryIntervalSeconds = maxInterval
- }
+	maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_POLLING_MAX_INTERVAL_SECONDS") + "s")
+	if err != nil {
+		logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
+		maxRetryIntervalSeconds = 300 * time.Second
+	} else {
+		maxRetryIntervalSeconds = maxInterval
+	}
 }
 
 func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResponse, error) {
@@ -56,28 +56,28 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 
 	// Log initial batch status
 	err = db.LogBatchResponse(batchResponse)
-    if err != nil {
-        logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
-    }
+	if err != nil {
+		logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
+	}
 
 	responses, err := PollAndCollectBatchResponses(client, batchResponse.ID)
 	if err != nil {
-        logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchResponse.ID, err)
-        return responses, err
-    }
+		logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchResponse.ID, err)
+		return responses, err
+	}
 
-    logger.InfoLogger.Printf("Successfully processed live batch: %s", batchResponse.ID)
-    
-    go func() {
-        err := db.CacheResponses(batchResponse.ID, responses)
-        if err != nil {
-            logger.ErrorLogger.Printf("Failed to cache responses for live batch %s: %v", batchResponse.ID, err)
-        } else {
-            logger.InfoLogger.Printf("Cached responses for live batch: %s", batchResponse.ID)
-        }
-    }()
+	logger.InfoLogger.Printf("Successfully processed live batch: %s", batchResponse.ID)
 
-    return responses, err
+	go func() {
+		err := db.CacheResponses(batchResponse.ID, responses)
+		if err != nil {
+			logger.ErrorLogger.Printf("Failed to cache responses for live batch %s: %v", batchResponse.ID, err)
+		} else {
+			logger.InfoLogger.Printf("Cached responses for live batch: %s", batchResponse.ID)
+		}
+	}()
+
+	return responses, err
 }
 
 func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
@@ -96,9 +96,9 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 
 		// Log current batch status
 		err = db.LogBatchResponse(batchStatus)
-        if err != nil {
-            logger.WarnLogger.Printf("Failed to log batch status: %v", err)
-        }
+		if err != nil {
+			logger.WarnLogger.Printf("Failed to log batch status: %v", err)
+		}
 
 		if batchStatus.Status == "completed" {
 			if batchStatus.OutputFileID == nil {
@@ -119,13 +119,12 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 			lines := bytes.Split(content, []byte("\n"))
 			responses := make([]openai.ChatCompletionResponse, 0, len(lines))
 
-			for l_i, line := range lines {
+			for _, line := range lines {
 				if len(line) == 0 {
 					// Skip empty lines
 					continue
 				}
 
-				logger.InfoLogger.Printf("Line %d contents: %s", l_i+1, string(line))
 				var batchResponseItem models.BatchResponseItem
 				if err := json.Unmarshal(line, &batchResponseItem); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal response item: %w", err)
@@ -151,10 +150,10 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 
 		time.Sleep(retryIntervalSeconds)
 		if retryIntervalSeconds < maxRetryIntervalSeconds {
-						retryIntervalSeconds = retryIntervalSeconds * 2
-						if retryIntervalSeconds > maxRetryIntervalSeconds {
-										retryIntervalSeconds = maxRetryIntervalSeconds
-						}
+			retryIntervalSeconds = retryIntervalSeconds * 2
+			if retryIntervalSeconds > maxRetryIntervalSeconds {
+				retryIntervalSeconds = maxRetryIntervalSeconds
+			}
 		}
 
 	}
