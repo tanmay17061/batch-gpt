@@ -9,21 +9,23 @@ It really is as simple as:
 
 ## Features 🤓👍
 
-- Ease of use: Accepts standard OpenAI-compatible APIs for chat completions, batch status, etc.
-- Out-of-box cost reductions:
-  1. ⭐ Uses OpenAI Batch API: Batch-GPT automatically converts chat completion requests to batch requests. OpenAI offers cost savings of up to 50% on their batch API.
-  2. Automatic request caching: As of 10-10-2024, [OpenAI does not offer prompt caching on their batch API](https://platform.openai.com/docs/guides/prompt-caching/frequently-asked-questions). Batch-GPT caches all requests, and incurs zero costs for repeating requests.
-- Increased reliability: In the scenario of a Batch-GPT server or client failure, all dangling-batches resume processing on the next server startup. Thanks to request caching, the client can make the same call to retrieve response from the cache.
-- Above features are supported across service runs. Batch-GPT persists data on a MongoDB instance.
-- Ability to view the completion status of all batches at once.
-- Centralized OpenAI key distribution: No need to circulate your OpenAI key amongst users. Batch-GPT accepts `OPENAI_API_KEY`. Any client communicating with Batch-GPT will automatically assume this key.
+- Seamless Integration: Drop-in replacement for standard OpenAI API clients
+- Cost-Effective:
+  1. ⭐ Up to 50% savings using OpenAI's Batch API
+  2. Automatic request caching for zero-cost repeat queries
+- Enhanced Reliability: Resumes processing of interrupted batches on server restart
+- Persistent Data: MongoDB integration for cross-session data retention
+- Centralized Management: View all batch statuses at once
+- Secure Key Distribution: Single OpenAI key for all clients, maintained via Batch-GPT
+
 
 ## Limitations 🤔
 
-- As of 10-10-2024, [OpenAI's Batch API claims an SLA of 24-hour turnaround time](https://platform.openai.com/docs/guides/batch/batch-api).
-- While the reliability features listed above help mitigate effects of this issue, this high TAT might lead to delays in project/client-server disconnections... It is definitely not recommended for serving live requests!
+- High Turnaround Time: OpenAI's Batch API has a 24-hour SLA (as of 10-10-2024).
+- Not Suitable for Real-Time: Potential delays make it unsuitable for live requests
+- Reliability Measures: While implemented, may not fully mitigate long processing times
 
-> **💡** Explore OpenAI's [Realtime API](https://platform.openai.com/docs/guides/realtime) for such usecases.
+> **💡** Consider OpenAI's [Realtime API](https://platform.openai.com/docs/guides/realtime) for immediate response needs.
 
 ## Prerequisites
 
