@@ -10,9 +10,11 @@ A jump-server to convert openai chat completion api requests to batched chat com
 
 It really is as simple as:
 ```diff
+from openai import OpenAI
 - client = OpenAI(api_key="sk-...")
 + client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt")
 ```
+> Just an example, Batch-GPT works with any OpenAI-compatible client.
 
 ## Features 🤓👍
 
