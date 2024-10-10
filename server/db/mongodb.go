@@ -148,27 +148,27 @@ func GetDanglingBatches() ([]string, error) {
     return danglingBatches, nil
 }
 
-func CacheResponses(batchID string, responses []openai.ChatCompletionResponse) error {
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
+// func CacheResponses(batchID string, responses []openai.ChatCompletionResponse) error {
+//     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+//     defer cancel()
 
-    var documents []interface{}
-    for _, response := range responses {
-        document := bson.M{
-            "batch_id":  batchID,
-            "response":  response,
-            "timestamp": time.Now(),
-        }
-        documents = append(documents, document)
-    }
+//     var documents []interface{}
+//     for _, response := range responses {
+//         document := bson.M{
+//             "batch_id":  batchID,
+//             "response":  response,
+//             "timestamp": time.Now(),
+//         }
+//         documents = append(documents, document)
+//     }
 
-    _, err := cachedResponsesCollection.InsertMany(ctx, documents)
-    if err != nil {
-        return fmt.Errorf("failed to insert cached responses: %w", err)
-    }
+//     _, err := cachedResponsesCollection.InsertMany(ctx, documents)
+//     if err != nil {
+//         return fmt.Errorf("failed to insert cached responses: %w", err)
+//     }
 
-    return nil
-}
+//     return nil
+// }
 
 func GetAllBatchStatuses() ([]openai.BatchResponse, error) {
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -194,4 +194,33 @@ func GetAllBatchStatuses() ([]openai.BatchResponse, error) {
     }
 
     return results, nil
+}
+
+func GetCachedResponse(hash string) (openai.ChatCompletionResponse, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    var result struct {
+        Response openai.ChatCompletionResponse `bson:"response"`
+    }
+    err := cachedResponsesCollection.FindOne(ctx, bson.M{"hash": hash}).Decode(&result)
+    if err != nil {
+        return openai.ChatCompletionResponse{}, err
+    }
+    return result.Response, nil
+}
+
+func CacheRequestResponse(hash string, request openai.ChatCompletionRequest, response openai.ChatCompletionResponse) error {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    document := bson.M{
+        "hash":      hash,
+        "request":   request,
+        "response":  response,
+        "timestamp": time.Now(),
+    }
+
+    _, err := cachedResponsesCollection.InsertOne(ctx, document)
+    return err
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
     "sync"
     "time"
@@ -73,24 +74,30 @@ func (bo *BatchOrchestrator) processBatch() {
     }
 
     batchRequest := models.BatchRequest{
-        Requests: make([]openai.ChatCompletionRequest, 0, len(requests)),
+        Requests: make([]models.BatchRequestItem, 0, len(requests)),
     }
-    requestIDs := make([]string, 0, len(requests))
 
     for id, req := range requests {
-        batchRequest.Requests = append(batchRequest.Requests, req)
-        requestIDs = append(requestIDs, id)
+        batchRequest.Requests = append(batchRequest.Requests, models.BatchRequestItem{
+            CustomID: id,
+            Request:  req,
+        })
     }
 
     responses, err := ProcessBatch(batchRequest)
 
-    for i, id := range requestIDs {
+    if err == nil {
+        // Cache the responses
+        GetCacheOrchestrator().CacheResponses(batchRequest.Requests, responses)
+    }
+
+    for i, requestItem := range batchRequest.Requests {
         result := BatchResult{Error: err}
         if err == nil && i < len(responses) {
-            result.Response = responses[i]
+            result.Response = responses[i].Response.Body
         }
-        channels[id] <- result
-        close(channels[id])
+        channels[requestItem.CustomID] <- result
+        close(channels[requestItem.CustomID])
     }
 }
 
@@ -129,18 +136,29 @@ func BackgroundContinueDanglingBatches() {
         go func(id string) {
             logger.InfoLogger.Printf("Processing dangling batch: %s", id)
             client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+            
+            batchStatus, err := client.RetrieveBatch(context.Background(), id)
+            if err != nil {
+                logger.ErrorLogger.Printf("Failed to retrieve batch %s: %v", id, err)
+                return
+            }
+
             responses, err := PollAndCollectBatchResponses(client, id)
             if err != nil {
                 logger.ErrorLogger.Printf("Failed to process dangling batch %s: %v", id, err)
                 return
             }
             logger.InfoLogger.Printf("Successfully processed dangling batch: %s", id)
-            err = db.CacheResponses(id, responses)
+
+            
+            requests, err := GetBatchInputRequests(client, batchStatus.InputFileID)
             if err != nil {
-                logger.ErrorLogger.Printf("Failed to cache responses for batch %s: %v", id, err)
-            } else {
-                logger.InfoLogger.Printf("Cached responses for batch: %s", id)
+                logger.ErrorLogger.Printf("Failed to get input requests for batch %s: %v", id, err)
+                return
             }
+
+            GetCacheOrchestrator().CacheResponses(requests, responses)
+            logger.InfoLogger.Printf("Cached responses for dangling batch: %s", id)
         }(batchID)
     }
 }

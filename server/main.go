@@ -15,6 +15,7 @@ func main() {
 	db.InitMongoDB()
 	services.InitPollingParameters()
 	services.InitBatchOrchestrator()
+	services.InitCacheOrchestrator()
 
 	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
 	r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)

@@ -14,6 +14,13 @@ func HandleChatCompletions(c *gin.Context) {
         return
     }
 
+    // Check cache first
+    if cachedResponse, found := services.GetCacheOrchestrator().GetFromCache(request); found {
+        c.JSON(http.StatusOK, cachedResponse)
+        return
+    }
+
+    // If not in cache, proceed with batch processing
     resultChan := services.AddRequestToBatch(request)
 
     select {

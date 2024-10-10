@@ -28,26 +28,26 @@ func InitPollingParameters() {
 	}
 }
 
-func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResponse, error) {
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+func ProcessBatch(batchRequest models.BatchRequest) ([]models.BatchResponseItem, error) {
+    client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-	batchChatRequest := openai.CreateBatchWithUploadFileRequest{
-		Endpoint:         openai.BatchEndpointChatCompletions,
-		CompletionWindow: "24h",
-		UploadBatchFileRequest: openai.UploadBatchFileRequest{
-			FileName: "batch_request.jsonl",
-			Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
-		},
-	}
+    batchChatRequest := openai.CreateBatchWithUploadFileRequest{
+        Endpoint:         openai.BatchEndpointChatCompletions,
+        CompletionWindow: "24h",
+        UploadBatchFileRequest: openai.UploadBatchFileRequest{
+            FileName: "batch_request.jsonl",
+            Lines:    make([]openai.BatchLineItem, len(batchRequest.Requests)),
+        },
+    }
 
-	for i, request := range batchRequest.Requests {
-		batchChatRequest.UploadBatchFileRequest.Lines[i] = openai.BatchChatCompletionRequest{
-			CustomID: fmt.Sprintf("request_%d", i+1),
-			Body:     request,
-			Method:   "POST",
-			URL:      openai.BatchEndpointChatCompletions,
-		}
-	}
+    for i, requestItem := range batchRequest.Requests {
+        batchChatRequest.UploadBatchFileRequest.Lines[i] = openai.BatchChatCompletionRequest{
+            CustomID: requestItem.CustomID,
+            Body:     requestItem.Request,
+            Method:   "POST",
+            URL:      openai.BatchEndpointChatCompletions,
+        }
+    }
 
 	batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
 	if err != nil {
@@ -68,19 +68,10 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 
 	logger.InfoLogger.Printf("Successfully processed live batch: %s", batchResponse.ID)
 
-	go func() {
-		err := db.CacheResponses(batchResponse.ID, responses)
-		if err != nil {
-			logger.ErrorLogger.Printf("Failed to cache responses for live batch %s: %v", batchResponse.ID, err)
-		} else {
-			logger.InfoLogger.Printf("Cached responses for live batch: %s", batchResponse.ID)
-		}
-	}()
-
 	return responses, err
 }
 
-func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
+func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]models.BatchResponseItem, error) {
 	ctx := context.Background()
 
 	retryIntervalSeconds := 5 * time.Second
@@ -117,31 +108,29 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 			}
 
 			lines := bytes.Split(content, []byte("\n"))
-			responses := make([]openai.ChatCompletionResponse, 0, len(lines))
-
-			for _, line := range lines {
-				if len(line) == 0 {
-					// Skip empty lines
-					continue
-				}
-
-				var batchResponseItem models.BatchResponseItem
-				if err := json.Unmarshal(line, &batchResponseItem); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal response item: %w", err)
-				}
-
-				if batchResponseItem.Response.StatusCode != 200 {
-					return nil, fmt.Errorf("API error for item %s: status code %d", batchResponseItem.CustomID, batchResponseItem.Response.StatusCode)
-				}
-
-				if batchResponseItem.Response.Error != nil {
-					return nil, fmt.Errorf("API error for item %s: %v", batchResponseItem.CustomID, batchResponseItem.Response.Error)
-				}
-
-				responses = append(responses, batchResponseItem.Response.Body)
-			}
-
-			return responses, nil
+			var responses []models.BatchResponseItem
+	        for _, line := range lines {
+	            if len(line) == 0 {
+	                continue
+	            }
+	
+	            var batchResponseItem models.BatchResponseItem
+	            if err := json.Unmarshal(line, &batchResponseItem); err != nil {
+	                return nil, fmt.Errorf("failed to unmarshal response item: %w", err)
+	            }
+	
+	            if batchResponseItem.Response.StatusCode != 200 {
+	                return nil, fmt.Errorf("API error for item %s: status code %d", batchResponseItem.CustomID, batchResponseItem.Response.StatusCode)
+	            }
+	
+	            if batchResponseItem.Response.Error != nil {
+	                return nil, fmt.Errorf("API error for item %s: %v", batchResponseItem.CustomID, batchResponseItem.Response.Error)
+	            }
+	
+	            responses = append(responses, batchResponseItem)
+	        }
+	
+	        return responses, nil
 		}
 
 		if batchStatus.Status == "failed" || batchStatus.Status == "cancelled" {
@@ -155,6 +144,5 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 				retryIntervalSeconds = maxRetryIntervalSeconds
 			}
 		}
-
 	}
 }
