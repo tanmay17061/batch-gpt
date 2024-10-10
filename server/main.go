@@ -13,6 +13,7 @@ func main() {
 	r := gin.Default()
 
 	db.InitMongoDB()
+	services.InitPollingParameters()
 	services.InitBatchOrchestrator()
 
 	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
