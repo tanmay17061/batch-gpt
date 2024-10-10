@@ -49,24 +49,24 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]models.BatchResponseItem,
         }
     }
 
-	batchResponse, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
+	batchStatus, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create batch: %w", err)
 	}
 
 	// Log initial batch status
-	err = db.LogBatchResponse(batchResponse)
+	err = db.LogBatchStatus(batchStatus)
 	if err != nil {
 		logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
 	}
 
-	responses, err := PollAndCollectBatchResponses(client, batchResponse.ID)
+	responses, err := PollAndCollectBatchResponses(client, batchStatus.ID)
 	if err != nil {
-		logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchResponse.ID, err)
+		logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchStatus.ID, err)
 		return responses, err
 	}
 
-	logger.InfoLogger.Printf("Successfully processed live batch: %s", batchResponse.ID)
+	logger.InfoLogger.Printf("Successfully processed live batch: %s", batchStatus.ID)
 
 	return responses, err
 }
@@ -86,7 +86,7 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]mode
 			batchStatus.ID, batchStatus.Status, batchStatus.InputFileID, batchStatus.OutputFileID, batchStatus.RequestCounts)
 
 		// Log current batch status
-		err = db.LogBatchResponse(batchStatus)
+		err = db.LogBatchStatus(batchStatus)
 		if err != nil {
 			logger.WarnLogger.Printf("Failed to log batch status: %v", err)
 		}
