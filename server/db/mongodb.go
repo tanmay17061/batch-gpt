@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -18,12 +19,29 @@ var client *mongo.Client
 var batchCollection *mongo.Collection
 var cachedResponsesCollection *mongo.Collection
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func InitMongoDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	
+	// Get MongoDB connection details from environment variables
+	mongoHost := getEnv("MONGO_HOST", "localhost")
+	mongoPort := getEnv("MONGO_PORT", "27017")
+	mongoUser := getEnv("MONGO_USER", "admin")
+	mongoPassword := getEnv("MONGO_PASSWORD", "password")
+	mongoDatabase := getEnv("MONGO_DATABASE", "batchgpt")
+
+	// Construct the MongoDB connection URI
+	mongoURI := fmt.Sprintf("mongodb://%s:%s@%s:%s", mongoUser, mongoPassword, mongoHost, mongoPort)
 
 	var err error
-	client, err = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://admin:password@localhost:27017"))
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,7 +51,7 @@ func InitMongoDB() {
 		log.Fatal(err)
 	}
 
-	database := client.Database("batchgpt")
+	database := client.Database(mongoDatabase)
 
 	// Check if the collection exists
 	collections, err := database.ListCollectionNames(ctx, bson.M{"name": "batch_logs"})

@@ -27,7 +27,6 @@ from openai import OpenAI
 - Centralized Management: View all batch statuses at once
 - Secure Key Distribution: Single OpenAI key for all clients, maintained via Batch-GPT
 
-
 ## Limitations 🤔
 
 - High Turnaround Time: OpenAI's Batch API has a 24-hour SLA (as of 10-10-2024).
@@ -63,6 +62,11 @@ You can either build the server from source (for the latest changes) or download
    ```
    export OPENAI_API_KEY=your_openai_api_key_here
    export COLLATE_BATCHES_FOR_DURATION_IN_MS=5000
+   export MONGO_HOST=localhost
+   export MONGO_PORT=27017
+   export MONGO_USER=admin
+   export MONGO_PASSWORD=password
+   export MONGO_DATABASE=batchgpt
    ```
 
 5. Run the server:
@@ -89,6 +93,11 @@ You can either build the server from source (for the latest changes) or download
    ```
    export OPENAI_API_KEY=your_openai_api_key_here
    export COLLATE_BATCHES_FOR_DURATION_IN_MS=5000
+   export MONGO_HOST=localhost
+   export MONGO_PORT=27017
+   export MONGO_USER=admin
+   export MONGO_PASSWORD=password
+   export MONGO_DATABASE=batchgpt
    ```
 
 4. Build and run the server:
@@ -219,6 +228,18 @@ A Python test client is provided in the `test-python-client` directory.
    python client.py "Write a joke on Gandalf and Saruman"
    ```
    > **Note:** To effectively utilize batching, run multiple instances of the Python client simultaneously. This simulates concurrent requests, allowing the server to group them into batches for processing.
+
+## Environment Variables
+
+The following environment variables can be used to configure the application:
+
+- `OPENAI_API_KEY`: Your OpenAI API key (required)
+- `COLLATE_BATCHES_FOR_DURATION_IN_MS`: Duration to collate batches in milliseconds (default: 5000)
+- `MONGO_HOST`: MongoDB server hostname (default: "localhost")
+- `MONGO_PORT`: MongoDB server port (default: "27017")
+- `MONGO_USER`: MongoDB username (default: "admin")
+- `MONGO_PASSWORD`: MongoDB password (default: "password")
+- `MONGO_DATABASE`: MongoDB database name (default: "batchgpt")
 
 ## Development
 
