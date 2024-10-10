@@ -1,4 +1,7 @@
 # batch-gpt
+
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/tanmay17061/batch-gpt)](https://github.com/tanmay17061/batch-gpt/releases)
+
 A jump-server to convert openai chat completion api requests to batched chat completion requests
 
 It really is as simple as:
