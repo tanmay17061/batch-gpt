@@ -1,18 +1,35 @@
 # batch-gpt
 A jump-server to convert openai chat completion api requests to batched chat completion requests
 
-## Features
+It really is as simple as
+```git
+- client = OpenAI(api_key="sk-...")
++ client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt/v1")
+```
 
-- Accepts standard OpenAI API-compatible chat completion requests
-- Batches multiple requests together before sending to OpenAI
-- Provides a status endpoint for checking batch processing status
-- Uses MongoDB for logging batch statuses
+## Features 🤓👍
+
+- Ease of use: Accepts standard OpenAI-compatible APIs for chat completions, batch status, etc.
+- Out-of-box cost reductions:
+  1. ⭐ Uses OpenAI Batch API: Batch-GPT automatically converts chat completion requests to batch requests. OpenAI offers cost savings of up to 50% on their batch API.
+  2. Automatic request caching: As of 10-10-2024, [OpenAI does not offer prompt caching on their batch API](https://platform.openai.com/docs/guides/prompt-caching/frequently-asked-questions). Batch-GPT caches all requests, and incurs zero costs for repeating requests.
+- Increased reliability: In the scenario of a Batch-GPT server or client failure, all dangling-batches resume processing on the next server startup. Thanks to request caching, the client can make the same call to retrieve response from the cache.
+- Above features are supported across service runs. Batch-GPT persists data on a MongoDB instance.
+- Ability to view the completion status of all batches at once.
+- Centralized OpenAI key distribution: No need to circulate your OpenAI key amongst users. Batch-GPT accepts `OPENAI_API_KEY`. Any client communicating with Batch-GPT will automatically assume this key.
+
+## Limitations 🤔
+
+- As of 10-10-2024, [OpenAI's Batch API claims an SLA of 24-hour turnaround time](https://platform.openai.com/docs/guides/batch/batch-api).
+- While the reliability features listed above help mitigate effects of this issue, this high TAT might lead to delays in project/client-server disconnections... It is definitely not recommended for serving live requests!
+
+> **💡** Explore OpenAI's [Realtime API](https://platform.openai.com/docs/guides/realtime) for such usecases.
 
 ## Prerequisites
 
 - Go 1.23.0 or later
-- Docker and Docker Compose (for running MongoDB)
-- OpenAI API key
+- Docker and (Docker Compose if running MongoDB through `local/mongo/docker-compose.yaml`)
+- An OpenAI API key
 
 ## Setup
 
@@ -74,7 +91,7 @@ from openai import OpenAI
 
 # Create a custom OpenAI client that points to the batch-gpt server
 client = OpenAI(
-    api_key="dummy_api_key",  # The API key is not used by batch-gpt, but is required by the client
+    api_key="dummy_openai_api_key",  # The API key is not used by batch-gpt, but is required by the client
     base_url="http://localhost:8080/v1"  # Point to your batch-gpt server
 )
 
