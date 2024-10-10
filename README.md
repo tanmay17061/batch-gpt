@@ -1,10 +1,10 @@
 # batch-gpt
 A jump-server to convert openai chat completion api requests to batched chat completion requests
 
-It really is as simple as
+It really is as simple as:
 ```diff
 - client = OpenAI(api_key="sk-...")
-+ client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt/v1")
++ client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt")
 ```
 
 ## Features 🤓👍
@@ -134,7 +134,7 @@ from openai import OpenAI
 
 # Create a custom OpenAI client that points to the batch-gpt server
 client = OpenAI(
-    api_key="dummy_api_key",  # The API key is not used by batch-gpt, but is required by the client
+    api_key="dummy_openai_api_key",  # The API key is not used by batch-gpt, but is required by the client
     base_url="http://localhost:8080/v1"  # Point to your batch-gpt server
 )
 

@@ -68,7 +68,7 @@ def main():
     args = parser.parse_args()
 
     client = OpenAI(
-        api_key="dummy_api_key",
+        api_key="dummy_openai_api_key",
         base_url="http://localhost:8080/v1"
     )
 
