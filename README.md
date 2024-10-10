@@ -1,6 +1,10 @@
 # batch-gpt
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/tanmay17061/batch-gpt)](https://github.com/tanmay17061/batch-gpt/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/tanmay17061/batch-gpt/release.yml)](https://github.com/tanmay17061/batch-gpt/actions)
+[![License](https://img.shields.io/github/license/tanmay17061/batch-gpt)](https://github.com/tanmay17061/batch-gpt/blob/main/LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/tanmay17061/batch-gpt)](https://github.com/tanmay17061/batch-gpt/blob/main/go.mod)
+[![Last Commit](https://img.shields.io/github/last-commit/tanmay17061/batch-gpt)](https://github.com/tanmay17061/batch-gpt/commits/main)
 
 A jump-server to convert openai chat completion api requests to batched chat completion requests
 
