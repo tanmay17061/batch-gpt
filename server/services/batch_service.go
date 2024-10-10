@@ -16,6 +16,18 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+var maxRetryIntervalSeconds time.Duration
+
+func init() {
+ maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_POLLING_MAX_INTERVAL_SECONDS") + "s")
+ if err != nil {
+  logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
+  maxRetryIntervalSeconds = 300 * time.Second
+ } else {
+  maxRetryIntervalSeconds = maxInterval
+ }
+}
+
 func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResponse, error) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
@@ -70,10 +82,10 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]openai.ChatCompletionResp
 
 func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]openai.ChatCompletionResponse, error) {
 	ctx := context.Background()
-	maxRetries := 60
-	retryInterval := 5 * time.Second
 
-	for i := 0; i < maxRetries; i++ {
+	retryIntervalSeconds := 5 * time.Second
+
+	for {
 		batchStatus, err := client.RetrieveBatch(ctx, batchID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve batch status: %w", err)
@@ -137,8 +149,13 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]open
 			return nil, fmt.Errorf("batch processing %s", batchStatus.Status)
 		}
 
-		time.Sleep(retryInterval)
-	}
+		time.Sleep(retryIntervalSeconds)
+		if retryIntervalSeconds < maxRetryIntervalSeconds {
+						retryIntervalSeconds = retryIntervalSeconds * 2
+						if retryIntervalSeconds > maxRetryIntervalSeconds {
+										retryIntervalSeconds = maxRetryIntervalSeconds
+						}
+		}
 
-	return nil, errors.New("max retries reached, batch processing did not complete in time")
+	}
 }
