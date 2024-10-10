@@ -96,15 +96,21 @@ You can check the status of a batch using any existing openai client.
 
 #### Using curl
 
-To check the status of a batch, send a GET request to `/v1/batches/{batch_id}`:
+To check the status of a specific batch:
 
 ```bash
 curl http://localhost:8080/v1/batches/{your_batch_id_here}
 ```
 
+To retrieve the status of all batches:
+
+```bash
+curl http://localhost:8080/v1/batches
+```
+
 #### Using OpenAI Python Client
 
-You can also use the OpenAI Python client to check the batch status. Here's an example:
+You can use the OpenAI Python client to check batch statuses. Here's an example:
 
 ```python
 from openai import OpenAI
@@ -115,21 +121,33 @@ client = OpenAI(
     base_url="http://localhost:8080/v1"  # Point to your batch-gpt server
 )
 
-# Retrieve the batch status
+# Retrieve the status of a specific batch
 batch_id = "your_batch_id_here"
 batch_status = client.batches.retrieve(batch_id)
 
 # Print the batch status
-print(f"Batch ID: {batch_status.id}")
-print(f"Status: {batch_status.status}")
-print(f"Created At: {batch_status.created_at}")
-print(f"Expires At: {batch_status.expires_at}")
-print(f"Request Counts: {batch_status.request_counts}")
-```
+print(f"Batch ID: {batch_status.batch.id}")
+print(f"Status: {batch_status.batch.status}")
+print(f"Created At: {batch_status.batch.created_at}")
+print(f"Expires At: {batch_status.batch.expires_at}")
+print(f"Request Counts: {batch_status.batch.request_counts}")
 
+# Retrieve the status of all batches
+all_batches = client.batches.list()
+
+# Print all batch statuses
+for batch_response in all_batches.data:
+    batch = batch_response.batch
+    print(f"Batch ID: {batch.id}")
+    print(f"Status: {batch.status}")
+    print(f"Created At: {batch.created_at}")
+    print(f"Expires At: {batch.expires_at}")
+    print(f"Request Counts: {batch.request_counts}")
+    print("---")
+```
 Replace `"your_batch_id_here"` with the actual batch ID you want to check.
 
-This code will connect to your local batch-gpt server and retrieve the status of the specified batch. The response will include details such as the batch ID, status, creation time, expiration time, and request counts.
+This code will connect to your local batch-gpt server and retrieve the status of either a specific batch or all batches. The response will include details such as the batch ID, status, creation time, expiration time, and request counts.
 
 ## Testing with Python Client
 
