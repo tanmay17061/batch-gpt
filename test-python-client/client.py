@@ -44,6 +44,9 @@ def status_single_batch(client, batch_id):
 def status_all_batches(client):
     try:
         response = client.batches.list()
+        if not response.data:
+            print("No batches received from the batches API")
+            return
         print("All batches:")
         for batch_response in response.data:
             batch = batch_response
