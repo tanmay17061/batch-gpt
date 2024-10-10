@@ -136,8 +136,7 @@ print(f"Request Counts: {batch_status.batch.request_counts}")
 all_batches = client.batches.list()
 
 # Print all batch statuses
-for batch_response in all_batches.data:
-    batch = batch_response.batch
+for batch in all_batches.data:
     print(f"Batch ID: {batch.id}")
     print(f"Status: {batch.status}")
     print(f"Created At: {batch.created_at}")
