@@ -44,6 +44,34 @@ from openai import OpenAI
 
 ## Setup
 
+You can either build the server from source (for the latest changes) or download pre-compiled binaries.
+
+### Option 1: Using Pre-compiled Binaries
+
+1. Download the latest release for your operating system (darwin/linux/windows) and architecture (amd64/arm64) from the [Releases page](https://github.com/tanmay17061/batch-gpt/releases).
+
+2. Extract the downloaded archive.
+
+3. Set up the MongoDB database:
+   ```
+   cd local/mongo
+   docker-compose up -d
+   cd ../..
+   ```
+
+4. Set environment variables:
+   ```
+   export OPENAI_API_KEY=your_openai_api_key_here
+   export COLLATE_BATCHES_FOR_DURATION_IN_MS=5000
+   ```
+
+5. Run the server:
+   ```
+   ./batch-gpt
+   ```
+
+### Option 2: Building from Source
+
 1. Clone the repository:
    ```
    git clone https://github.com/tanmay17061/batch-gpt.git
