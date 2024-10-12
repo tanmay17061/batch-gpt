@@ -1,25 +1,25 @@
 package services
 
 import (
-	"context"
-	"fmt"
-    "sync"
-    "time"
+    "batch-gpt/server/db"
+    "batch-gpt/server/logger"
+    "batch-gpt/server/models"
+    "context"
     "os"
     "strconv"
-    "batch-gpt/server/db"
-    "batch-gpt/server/models"
-    "batch-gpt/server/logger"
+    "sync"
+    "time"
     openai "github.com/sashabaranov/go-openai"
 )
 
 type BatchOrchestrator struct {
-    requests         map[string]openai.ChatCompletionRequest
-    resultChannels   map[string]chan BatchResult
-    mu               sync.Mutex
-    batchDuration    time.Duration
-    processingTicker *time.Ticker
-    nextRequestID    int
+    submitNextRequests         map[string]openai.ChatCompletionRequest
+    submitNextResultChannels   map[string][]chan BatchResult
+    allSubmittedRequests       map[string]openai.ChatCompletionRequest
+    allSubmittedResultChannels map[string][]chan BatchResult
+    mu                         sync.Mutex
+    batchDuration              time.Duration
+    processingTicker           *time.Ticker
 }
 
 type BatchResult struct {
@@ -38,10 +38,11 @@ func InitBatchOrchestrator() {
     logger.InfoLogger.Printf("InitBatchOrchestrator: Batch collate duration set to %d milliseconds", collateDuration)
 
     orchestrator = &BatchOrchestrator{
-        batchDuration:  time.Duration(collateDuration) * time.Millisecond,
-        requests:       make(map[string]openai.ChatCompletionRequest),
-        resultChannels: make(map[string]chan BatchResult),
-        nextRequestID:  1,
+        batchDuration:              time.Duration(collateDuration) * time.Millisecond,
+        submitNextRequests:         make(map[string]openai.ChatCompletionRequest),
+        submitNextResultChannels:   make(map[string][]chan BatchResult),
+        allSubmittedRequests:       make(map[string]openai.ChatCompletionRequest),
+        allSubmittedResultChannels: make(map[string][]chan BatchResult),
     }
 
     go orchestrator.startProcessing()
@@ -61,12 +62,38 @@ func (bo *BatchOrchestrator) startProcessing() {
     }
 }
 
+func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-chan BatchResult {
+    bo.mu.Lock()
+    defer bo.mu.Unlock()
+
+    hash, err := generateRequestHash(request)
+    if err != nil {
+        logger.ErrorLogger.Printf("Failed to generate request hash: %v", err)
+        resultChan := make(chan BatchResult, 1)
+        resultChan <- BatchResult{Error: err}
+        close(resultChan)
+        return resultChan
+    }
+
+    resultChan := make(chan BatchResult, 1)
+    
+    if _, found := bo.allSubmittedRequests[hash]; found {
+        logger.InfoLogger.Printf("Duplicate request found with hash: %s", hash)
+        bo.allSubmittedResultChannels[hash] = append(bo.allSubmittedResultChannels[hash], resultChan)
+    } else {
+        logger.InfoLogger.Printf("New request added with hash: %s", hash)
+        bo.submitNextRequests[hash] = request
+        bo.allSubmittedRequests[hash] = request
+        bo.allSubmittedResultChannels[hash] = []chan BatchResult{resultChan}
+    }
+
+    return resultChan
+}
+
 func (bo *BatchOrchestrator) processBatch() {
     bo.mu.Lock()
-    requests := bo.requests
-    channels := bo.resultChannels
-    bo.requests = make(map[string]openai.ChatCompletionRequest)
-    bo.resultChannels = make(map[string]chan BatchResult)
+    requests := bo.submitNextRequests
+    bo.submitNextRequests = make(map[string]openai.ChatCompletionRequest)
     bo.mu.Unlock()
 
     if len(requests) == 0 {
@@ -77,9 +104,9 @@ func (bo *BatchOrchestrator) processBatch() {
         Requests: make([]models.BatchRequestItem, 0, len(requests)),
     }
 
-    for id, req := range requests {
+    for hash, req := range requests {
         batchRequest.Requests = append(batchRequest.Requests, models.BatchRequestItem{
-            CustomID: id,
+            CustomID: hash,
             Request:  req,
         })
     }
@@ -87,35 +114,27 @@ func (bo *BatchOrchestrator) processBatch() {
     responses, err := ProcessBatch(batchRequest)
 
     if err == nil {
-        // Cache the responses
         GetCacheOrchestrator().CacheResponses(batchRequest.Requests, responses)
     }
 
-    for i, requestItem := range batchRequest.Requests {
-        result := BatchResult{Error: err}
-        if err == nil && i < len(responses) {
-            result.Response = responses[i].Response.Body
-        }
-        channels[requestItem.CustomID] <- result
-        close(channels[requestItem.CustomID])
-    }
-}
-
-func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-chan BatchResult {
     bo.mu.Lock()
     defer bo.mu.Unlock()
 
-    id := fmt.Sprintf("req_%d", bo.nextRequestID)
-    
-    logger.InfoLogger.Printf("BatchOrchestrator.AddRequest: Request %s added to the batch", id)
-
-    bo.nextRequestID++
-
-    bo.requests[id] = request
-    resultChan := make(chan BatchResult, 1)
-    bo.resultChannels[id] = resultChan
-
-    return resultChan
+    for _, response := range responses {
+        result := BatchResult{
+            Response: response.Response.Body,
+            Error:    err,
+        }
+        hash := response.CustomID
+        if channels, ok := bo.allSubmittedResultChannels[hash]; ok {
+            for _, ch := range channels {
+                ch <- result
+                close(ch)
+            }
+            delete(bo.allSubmittedRequests, hash)
+            delete(bo.allSubmittedResultChannels, hash)
+        }
+    }
 }
 
 func AddRequestToBatch(request openai.ChatCompletionRequest) <-chan BatchResult {
@@ -132,16 +151,40 @@ func BackgroundContinueDanglingBatches() {
 
     logger.InfoLogger.Printf("Found %d dangling batches", len(danglingBatches))
 
+    client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
     for _, batchID := range danglingBatches {
         go func(id string) {
             logger.InfoLogger.Printf("Processing dangling batch: %s", id)
-            client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
             
             batchStatus, err := client.RetrieveBatch(context.Background(), id)
             if err != nil {
                 logger.ErrorLogger.Printf("Failed to retrieve batch %s: %v", id, err)
                 return
             }
+
+            requests, err := GetBatchInputRequests(client, batchStatus.InputFileID)
+            if err != nil {
+                logger.ErrorLogger.Printf("Failed to get input requests for batch %s: %v", id, err)
+                return
+            }
+
+            // Add dangling requests to the BatchOrchestrator
+            orchestrator.mu.Lock()
+            for _, req := range requests {
+                hash, err := generateRequestHash(req.Request)
+                if err != nil {
+                    logger.ErrorLogger.Printf("Failed to generate hash for request in batch %s: %v", id, err)
+                    continue
+                }
+
+                if _, exists := orchestrator.allSubmittedRequests[hash]; !exists {
+                    orchestrator.allSubmittedRequests[hash] = req.Request
+                    orchestrator.allSubmittedResultChannels[hash] = []chan BatchResult{}
+                    logger.InfoLogger.Printf("Added dangling request with hash %s to BatchOrchestrator", hash)
+                }
+            }
+            orchestrator.mu.Unlock()
 
             responses, err := PollAndCollectBatchResponses(client, id)
             if err != nil {
@@ -150,15 +193,43 @@ func BackgroundContinueDanglingBatches() {
             }
             logger.InfoLogger.Printf("Successfully processed dangling batch: %s", id)
 
-            
-            requests, err := GetBatchInputRequests(client, batchStatus.InputFileID)
-            if err != nil {
-                logger.ErrorLogger.Printf("Failed to get input requests for batch %s: %v", id, err)
-                return
-            }
+            // Update BatchOrchestrator with results
+            orchestrator.mu.Lock()
+            for _, resp := range responses {
+                hash := resp.CustomID // Assuming CustomID is now the hash
+                result := BatchResult{
+                    Response: resp.Response.Body,
+                    Error:    nil,
+                }
 
-            GetCacheOrchestrator().CacheResponses(requests, responses)
+                if channels, exists := orchestrator.allSubmittedResultChannels[hash]; exists {
+                    for _, ch := range channels {
+                        ch <- result
+                        close(ch)
+                    }
+                    delete(orchestrator.allSubmittedRequests, hash)
+                    delete(orchestrator.allSubmittedResultChannels, hash)
+                }
+            }
+            orchestrator.mu.Unlock()
+
+            // Cache the responses
+            cacheRequests := make([]models.BatchRequestItem, len(requests))
+            for i, req := range requests {
+                hash, _ := generateRequestHash(req.Request)
+                cacheRequests[i] = models.BatchRequestItem{
+                    CustomID: hash,
+                    Request:  req.Request,
+                }
+            }
+            GetCacheOrchestrator().CacheResponses(cacheRequests, responses)
             logger.InfoLogger.Printf("Cached responses for dangling batch: %s", id)
+
+            // Update batch status in the database
+            err = db.LogBatchStatus(batchStatus)
+            if err != nil {
+                logger.ErrorLogger.Printf("Failed to update batch status for %s: %v", id, err)
+            }
         }(batchID)
     }
 }
