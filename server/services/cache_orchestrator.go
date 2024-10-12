@@ -23,7 +23,10 @@ func GetCacheOrchestrator() *CacheOrchestrator {
 }
 
 func (co *CacheOrchestrator) GetFromCache(request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, bool) {
-    hash, err := generateRequestHash(request)
+    // Cache hit: Same messages, same model, same parameters (temperature, max_tokens, etc.)
+	// Cache miss: Any difference in messages, model, or parameters
+
+	hash, err := generateRequestHash(request)
     if err != nil {
         logger.ErrorLogger.Printf("Failed to generate request hash: %v", err)
         return openai.ChatCompletionResponse{}, false
