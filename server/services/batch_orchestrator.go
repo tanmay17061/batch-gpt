@@ -78,10 +78,10 @@ func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-
     resultChan := make(chan BatchResult, 1)
     
     if _, found := bo.allSubmittedRequests[hash]; found {
-        logger.InfoLogger.Printf("Duplicate request found with hash: %s", hash)
+        logger.InfoLogger.Printf("BatchOrchestrator: Duplicate request found with hash: %s. A similar request is (queued to be/already) submitted to OpenAI. The same response will be used to serve this request.", hash)
         bo.allSubmittedResultChannels[hash] = append(bo.allSubmittedResultChannels[hash], resultChan)
     } else {
-        logger.InfoLogger.Printf("New request added with hash: %s", hash)
+        logger.InfoLogger.Printf("BatchOrchestrator: New request added with hash: %s", hash)
         bo.submitNextRequests[hash] = request
         bo.allSubmittedRequests[hash] = request
         bo.allSubmittedResultChannels[hash] = []chan BatchResult{resultChan}
@@ -142,30 +142,30 @@ func AddRequestToBatch(request openai.ChatCompletionRequest) <-chan BatchResult 
 }
 
 func BackgroundContinueDanglingBatches() {
-    logger.InfoLogger.Println("Starting to process dangling batches")
+    logger.InfoLogger.Println("BackgroundContinueDanglingBatches: Starting to process dangling batches")
     danglingBatches, err := db.GetDanglingBatches()
     if err != nil {
-        logger.ErrorLogger.Printf("Failed to get dangling batches: %v", err)
+        logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to get dangling batches: %v", err)
         return
     }
 
-    logger.InfoLogger.Printf("Found %d dangling batches", len(danglingBatches))
+    logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Found %d dangling batches", len(danglingBatches))
 
     client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
     for _, batchID := range danglingBatches {
         go func(id string) {
-            logger.InfoLogger.Printf("Processing dangling batch: %s", id)
+            logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Processing dangling batch: %s", id)
             
             batchStatus, err := client.RetrieveBatch(context.Background(), id)
             if err != nil {
-                logger.ErrorLogger.Printf("Failed to retrieve batch %s: %v", id, err)
+                logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to retrieve batch %s: %v", id, err)
                 return
             }
 
             requests, err := GetBatchInputRequests(client, batchStatus.InputFileID)
             if err != nil {
-                logger.ErrorLogger.Printf("Failed to get input requests for batch %s: %v", id, err)
+                logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to get input requests for batch %s: %v", id, err)
                 return
             }
 
@@ -174,24 +174,24 @@ func BackgroundContinueDanglingBatches() {
             for _, req := range requests {
                 hash, err := generateRequestHash(req.Request)
                 if err != nil {
-                    logger.ErrorLogger.Printf("Failed to generate hash for request in batch %s: %v", id, err)
+                    logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to generate hash for request in batch %s: %v", id, err)
                     continue
                 }
 
                 if _, exists := orchestrator.allSubmittedRequests[hash]; !exists {
                     orchestrator.allSubmittedRequests[hash] = req.Request
                     orchestrator.allSubmittedResultChannels[hash] = []chan BatchResult{}
-                    logger.InfoLogger.Printf("Added dangling request with hash %s to BatchOrchestrator", hash)
+                    logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Added dangling request with hash %s to BatchOrchestrator", hash)
                 }
             }
             orchestrator.mu.Unlock()
 
             responses, err := PollAndCollectBatchResponses(client, id)
             if err != nil {
-                logger.ErrorLogger.Printf("Failed to process dangling batch %s: %v", id, err)
+                logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to process dangling batch %s: %v", id, err)
                 return
             }
-            logger.InfoLogger.Printf("Successfully processed dangling batch: %s", id)
+            logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Successfully processed dangling batch: %s", id)
 
             // Update BatchOrchestrator with results
             orchestrator.mu.Lock()
@@ -223,12 +223,12 @@ func BackgroundContinueDanglingBatches() {
                 }
             }
             GetCacheOrchestrator().CacheResponses(cacheRequests, responses)
-            logger.InfoLogger.Printf("Cached responses for dangling batch: %s", id)
+            logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Cached responses for dangling batch: %s", id)
 
             // Update batch status in the database
             err = db.LogBatchStatus(batchStatus)
             if err != nil {
-                logger.ErrorLogger.Printf("Failed to update batch status for %s: %v", id, err)
+                logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to update batch status for %s: %v", id, err)
             }
         }(batchID)
     }
