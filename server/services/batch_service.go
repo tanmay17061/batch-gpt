@@ -19,9 +19,9 @@ import (
 var maxRetryIntervalSeconds time.Duration
 
 func InitPollingParameters() {
-	maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_POLLING_MAX_INTERVAL_SECONDS") + "s")
+	maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS") + "s")
 	if err != nil {
-		logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
+		logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
 		maxRetryIntervalSeconds = 300 * time.Second
 	} else {
 		maxRetryIntervalSeconds = maxInterval

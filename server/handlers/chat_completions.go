@@ -22,9 +22,13 @@ func HandleChatCompletions(c *gin.Context) {
 
     // If not in cache, proceed with batch processing
     resultChan := services.AddRequestToBatch(request)
-
+    
     select {
     case result := <-resultChan:
+        if result.IsAsync {
+            c.JSON(http.StatusAccepted, gin.H{"message": "Request submitted for processing"})
+            return
+        }
         if result.Error != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
         } else {
@@ -33,4 +37,4 @@ func HandleChatCompletions(c *gin.Context) {
     case <-c.Request.Context().Done():
         c.JSON(http.StatusRequestTimeout, gin.H{"error": "Request timeout"})
     }
-}
+    }

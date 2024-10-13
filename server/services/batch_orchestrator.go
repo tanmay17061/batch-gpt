@@ -25,6 +25,7 @@ type BatchOrchestrator struct {
 type BatchResult struct {
     Response openai.ChatCompletionResponse
     Error    error
+    IsAsync  bool
 }
 
 var orchestrator *BatchOrchestrator
@@ -79,12 +80,21 @@ func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-
     
     if _, found := bo.allSubmittedRequests[hash]; found {
         logger.InfoLogger.Printf("BatchOrchestrator: Duplicate request found with hash: %s. A similar request is (queued to be/already) submitted to OpenAI. The same response will be used to serve this request.", hash)
-        bo.allSubmittedResultChannels[hash] = append(bo.allSubmittedResultChannels[hash], resultChan)
     } else {
         logger.InfoLogger.Printf("BatchOrchestrator: New request added with hash: %s", hash)
         bo.submitNextRequests[hash] = request
         bo.allSubmittedRequests[hash] = request
-        bo.allSubmittedResultChannels[hash] = []chan BatchResult{resultChan}
+        bo.allSubmittedResultChannels[hash] = []chan BatchResult{}
+    }
+
+    if IsAsyncMode() {
+        // In async mode, send an immediate result with IsAsync flag
+        // and close the channel
+        resultChan <- BatchResult{IsAsync: true}
+        close(resultChan)
+    } else {
+	    // In sync mode, save channel to send result to once the response is available
+	    bo.allSubmittedResultChannels[hash] = append(bo.allSubmittedResultChannels[hash], resultChan)
     }
 
     return resultChan
@@ -124,11 +134,17 @@ func (bo *BatchOrchestrator) processBatch() {
         result := BatchResult{
             Response: response.Response.Body,
             Error:    err,
+            IsAsync:  false,
         }
         hash := response.CustomID
         if channels, ok := bo.allSubmittedResultChannels[hash]; ok {
             for _, ch := range channels {
-                ch <- result
+                select {
+                case <-ch: // Try to receive, in case an async result was already sent
+                    // Channel was already used for async response, don't send again
+                default:
+                    ch <- result
+                }
                 close(ch)
             }
             delete(bo.allSubmittedRequests, hash)
@@ -196,15 +212,28 @@ func BackgroundContinueDanglingBatches() {
             // Update BatchOrchestrator with results
             orchestrator.mu.Lock()
             for _, resp := range responses {
-                hash := resp.CustomID // Assuming CustomID is now the hash
+                hash := resp.CustomID // Assuming hash was submitted as the custom id during batch request creation to openAI
                 result := BatchResult{
                     Response: resp.Response.Body,
                     Error:    nil,
+                    // if a new request arrives for a dangling batch in sync mode,
+                    // it needs to receive IsAsync as false.
+                    IsAsync:  false,
                 }
 
+                // In case of a dangling batch, orchestrator.allSubmittedResultChannels[hash] will
+                // contain channels for requests that were accummulated while the dangline batch was being processed.
                 if channels, exists := orchestrator.allSubmittedResultChannels[hash]; exists {
+	                logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Dangling batch with hash=%s has %d result channels", hash, len(channels))
                     for _, ch := range channels {
-                        ch <- result
+                        select {
+                        case ch <- result:
+	                        // Successfully sent the result
+			                logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Result successfully sent to channel")
+	                    default:
+	                        // Channel is full or closed, log this situation
+	                        logger.WarnLogger.Printf("Unable to send result for dangling batch item %s", hash)
+                        }
                         close(ch)
                     }
                     delete(orchestrator.allSubmittedRequests, hash)

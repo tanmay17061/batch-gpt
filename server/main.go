@@ -2,11 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 
-	"github.com/gin-gonic/gin"
+	"batch-gpt/server/db"
 	"batch-gpt/server/handlers"
 	"batch-gpt/server/services"
-	"batch-gpt/server/db"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -20,6 +22,13 @@ func main() {
 	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
 	r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
 	r.GET("/v1/batches", handlers.HandleListBatches)
+
+	clientServingMode := os.Getenv("CLIENT_SERVING_MODE")
+    if clientServingMode == "" {
+        clientServingMode = "sync" // Default to synchronous mode
+    }
+
+    services.InitServingMode(clientServingMode)
 
 	log.Println("Server starting on :8080")
 	if err := r.Run(":8080"); err != nil {
