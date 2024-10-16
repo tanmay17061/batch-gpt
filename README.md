@@ -112,7 +112,7 @@ You can either build the server from source (for the latest changes) or download
 The server will start on `http://localhost:8080`.
 
 ## Usage
-Note: In asynchronous mode, the server will return immediately with a submission confirmation instead of waiting for the actual response. Look at the Advanced Settings section to learn more about sync/async modes.
+Note: In asynchronous mode, the server will return immediately with a submission confirmation instead of waiting for the actual response. Look at the [Advanced Settings](#advanced-settings) section to learn more about sync/async modes.
 
 ### Sending Chat Completion Requests
 
