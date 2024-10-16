@@ -25,6 +25,9 @@ from openai import OpenAI
 - Enhanced Reliability: Resumes processing of interrupted batches on server restart
 - Persistent Data: MongoDB integration for cross-session data retention
 - Centralized Management: View all batch statuses at once
+- Flexible Serving Modes:
+  - Synchronous mode for immediate responses
+  - Asynchronous mode for handling high-volume requests
 - Secure Key Distribution: Single OpenAI key for all clients, maintained via Batch-GPT
 
 ## Limitations 🤔
@@ -109,6 +112,7 @@ You can either build the server from source (for the latest changes) or download
 The server will start on `http://localhost:8080`.
 
 ## Usage
+Note: In asynchronous mode, the server will return immediately with a submission confirmation instead of waiting for the actual response. Look at the Advanced Settings section to learn more about sync/async modes.
 
 ### Sending Chat Completion Requests
 
@@ -234,12 +238,44 @@ A Python test client is provided in the `test-python-client` directory.
 The following environment variables can be used to configure the application:
 
 - `OPENAI_API_KEY`: Your OpenAI API key (required)
+- `CLIENT_SERVING_MODE`: Set to "sync" for synchronous (default) or "async" for asynchronous serving mode
 - `COLLATE_BATCHES_FOR_DURATION_IN_MS`: Duration to collate batches in milliseconds (default: 5000)
+- `COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS`: Maximum interval (in seconds) between polling attempts when collecting batch statistics. This value caps the exponential backoff for long-running batches. Default is 300 seconds (5 minutes) if not set.
 - `MONGO_HOST`: MongoDB server hostname (default: "localhost")
 - `MONGO_PORT`: MongoDB server port (default: "27017")
 - `MONGO_USER`: MongoDB username (default: "admin")
 - `MONGO_PASSWORD`: MongoDB password (default: "password")
 - `MONGO_DATABASE`: MongoDB database name (default: "batchgpt")
+
+## Advanced Settings
+
+Fine-tune Batch-GPT's behavior with these advanced configuration options for optimal performance in various scenarios.
+
+### Serving Modes
+
+Batch-GPT supports two serving modes:
+
+1. Synchronous Mode (Default):
+   - Similar to the standard OpenAI requests, clients remain blocked after making a request to the server.
+   - Ideal for low-volume scenarios where
+   - Set `CLIENT_SERVING_MODE=sync` or leave unset
+
+2. Asynchronous Mode:
+   - Returns immediately with a submission confirmation
+   - Ideal for high-volume scenarios where each worker remaining blocked on a response is not practical
+   - Set `CLIENT_SERVING_MODE=async`
+
+To change the serving mode, set the `CLIENT_SERVING_MODE` environment variable before starting the server.
+
+### Batch Statistics Polling
+
+The server uses an exponential backoff strategy when polling for batch statistics to reduce unnecessary API calls for long-running batches. The `COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS` environment variable sets an upper limit on this interval.
+
+For example:
+```bash
+export COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS=600
+```
+This would set the maximum polling interval to 10 minutes. The actual polling interval starts smaller and increases exponentially up to this maximum value.
 
 ## Development
 

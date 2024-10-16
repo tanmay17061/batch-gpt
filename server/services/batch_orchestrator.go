@@ -79,9 +79,9 @@ func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-
     resultChan := make(chan BatchResult, 1)
     
     if _, found := bo.allSubmittedRequests[hash]; found {
-        logger.InfoLogger.Printf("BatchOrchestrator: Duplicate request found with hash: %s. A similar request is (queued to be/already) submitted to OpenAI. The same response will be used to serve this request.", hash)
+        logger.InfoLogger.Printf("BatchOrchestrator: cache hit: %s", hash)
     } else {
-        logger.InfoLogger.Printf("BatchOrchestrator: New request added with hash: %s", hash)
+        logger.InfoLogger.Printf("BatchOrchestrator: cache miss: %s", hash)
         bo.submitNextRequests[hash] = request
         bo.allSubmittedRequests[hash] = request
         bo.allSubmittedResultChannels[hash] = []chan BatchResult{}
@@ -251,6 +251,7 @@ func BackgroundContinueDanglingBatches() {
                     Request:  req.Request,
                 }
             }
+
             GetCacheOrchestrator().CacheResponses(cacheRequests, responses)
             logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Cached responses for dangling batch: %s", id)
 
