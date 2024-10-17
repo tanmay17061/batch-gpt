@@ -297,6 +297,17 @@ This would set the maximum polling interval to 10 minutes. The actual polling in
 3. Modify `/server/main.go` to wire up new endpoints or services
 4. Update this README with any new setup or usage instructions
 
+## Acknowledgements
+
+This project makes extensive use of the [go-openai](https://github.com/sashabaranov/go-openai) library, which provides a Go client for the OpenAI API. We are grateful to the maintainers and contributors of go-openai for their excellent work, which has significantly simplified our interaction with OpenAI's services.
+
+The go-openai library is used throughout this project for:
+- Defining request and response structures
+- Handling API interactions with OpenAI
+- Implementing batch processing functionality
+
+We encourage users and contributors to this project to also check out and support the go-openai library.
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
