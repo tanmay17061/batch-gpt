@@ -1,15 +1,16 @@
 package services
 
 import (
-    "batch-gpt/server/db"
-    "batch-gpt/server/logger"
-    "batch-gpt/server/models"
-    "context"
-    "os"
-    "strconv"
-    "sync"
-    "time"
-    openai "github.com/sashabaranov/go-openai"
+	"batch-gpt/server/db"
+	"batch-gpt/server/logger"
+	"batch-gpt/server/models"
+	"context"
+	"os"
+	"strconv"
+	"sync"
+	"time"
+
+	openai "github.com/sashabaranov/go-openai"
 )
 
 type BatchOrchestrator struct {
@@ -35,7 +36,7 @@ func InitBatchOrchestrator() {
     if err != nil {
         collateDuration = 5000 // Default to 5 seconds if not set or invalid
     }
-    
+
     logger.InfoLogger.Printf("InitBatchOrchestrator: Batch collate duration set to %d milliseconds", collateDuration)
 
     orchestrator = &BatchOrchestrator{
@@ -52,14 +53,14 @@ func InitBatchOrchestrator() {
 
 func (bo *BatchOrchestrator) startProcessing() {
     bo.processingTicker = time.NewTicker(bo.batchDuration)
-    
+
     // This loop runs indefinitely, processing batches at regular intervals.
     // The ticker fires every batchDuration, regardless of whether there are requests to process.
     // If there are no requests when the ticker fires, processBatch() will return early.
     // This approach ensures consistent batch processing intervals but may lead to some
     // unnecessary wake-ups when there are no requests to process.
     for range bo.processingTicker.C {
-        bo.processBatch()
+        go bo.processBatch()
     }
 }
 
@@ -77,7 +78,7 @@ func (bo *BatchOrchestrator) AddRequest(request openai.ChatCompletionRequest) <-
     }
 
     resultChan := make(chan BatchResult, 1)
-    
+
     if _, found := bo.allSubmittedRequests[hash]; found {
         logger.InfoLogger.Printf("BatchOrchestrator: cache hit: %s", hash)
     } else {
@@ -107,13 +108,14 @@ func (bo *BatchOrchestrator) processBatch() {
     bo.mu.Unlock()
 
     if len(requests) == 0 {
+	    logger.InfoLogger.Printf("processBatch called with an empty list of requests. not submitting any batch requests.")
         return
     }
 
     batchRequest := models.BatchRequest{
         Requests: make([]models.BatchRequestItem, 0, len(requests)),
     }
-
+    logger.InfoLogger.Printf("processBatch: Processing batch with %d requests", len(requests))
     for hash, req := range requests {
         batchRequest.Requests = append(batchRequest.Requests, models.BatchRequestItem{
             CustomID: hash,
@@ -172,7 +174,7 @@ func BackgroundContinueDanglingBatches() {
     for _, batchID := range danglingBatches {
         go func(id string) {
             logger.InfoLogger.Printf("BackgroundContinueDanglingBatches: Processing dangling batch: %s", id)
-            
+
             batchStatus, err := client.RetrieveBatch(context.Background(), id)
             if err != nil {
                 logger.ErrorLogger.Printf("BackgroundContinueDanglingBatches: Failed to retrieve batch %s: %v", id, err)
