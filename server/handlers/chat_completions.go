@@ -1,27 +1,39 @@
 package handlers
 
 import (
+    "batch-gpt/services/batch"
+    "batch-gpt/services/cache"
     "net/http"
     "github.com/gin-gonic/gin"
     openai "github.com/sashabaranov/go-openai"
-    "batch-gpt/server/services"
 )
 
-func HandleChatCompletions(c *gin.Context) {
+type ChatCompletionsHandler struct {
+    batchOrch batch.Orchestrator
+    cacheOrch cache.Orchestrator
+}
+
+func NewChatCompletionsHandler(batchOrch batch.Orchestrator, cacheOrch cache.Orchestrator) gin.HandlerFunc {
+    handler := &ChatCompletionsHandler{
+        batchOrch: batchOrch,
+        cacheOrch: cacheOrch,
+    }
+    return handler.Handle
+}
+
+func (h *ChatCompletionsHandler) Handle(c *gin.Context) {
     var request openai.ChatCompletionRequest
     if err := c.ShouldBindJSON(&request); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    // Check cache first
-    if cachedResponse, found := services.GetCacheOrchestrator().GetFromCache(request); found {
+    if cachedResponse, found := h.cacheOrch.GetFromCache(request); found {
         c.JSON(http.StatusOK, cachedResponse)
         return
     }
 
-    // If not in cache, proceed with batch processing
-    resultChan := services.AddRequestToBatch(request)
+    resultChan := h.batchOrch.AddRequest(request)
     
     select {
     case result := <-resultChan:
@@ -37,4 +49,4 @@ func HandleChatCompletions(c *gin.Context) {
     case <-c.Request.Context().Done():
         c.JSON(http.StatusRequestTimeout, gin.H{"error": "Request timeout"})
     }
-    }
+}

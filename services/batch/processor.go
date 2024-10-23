@@ -1,36 +1,34 @@
-package services
+package batch
 
 import (
-	"batch-gpt/server/db"
-	"batch-gpt/server/logger"
-	"batch-gpt/server/models"
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"time"
-
-	openai "github.com/sashabaranov/go-openai"
+    "batch-gpt/server/db"
+    "batch-gpt/server/logger"
+    "batch-gpt/server/models"
+    "batch-gpt/services/client"
+    "batch-gpt/services/config"
+    "bytes"
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "io"
+    "time"
+    openai "github.com/sashabaranov/go-openai"
 )
 
-var maxRetryIntervalSeconds time.Duration
-
-func InitPollingParameters() {
-	maxInterval, err := time.ParseDuration(os.Getenv("COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS") + "s")
-	if err != nil {
-		logger.WarnLogger.Printf("Failed to parse COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS, using default of 300s: %v", err)
-		maxRetryIntervalSeconds = 300 * time.Second
-	} else {
-		maxRetryIntervalSeconds = maxInterval
-	}
+type processor struct {
+    client        client.OpenAIClient
+    pollingConfig config.PollingConfig
 }
 
-func ProcessBatch(batchRequest models.BatchRequest) ([]models.BatchResponseItem, error) {
-    client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+func NewProcessor(client client.OpenAIClient, pollingConfig config.PollingConfig) Processor {
+    return &processor{
+        client:        client,
+        pollingConfig: pollingConfig,
+    }
+}
 
+func (p *processor) ProcessBatch(batchRequest models.BatchRequest) ([]models.BatchResponseItem, error) {
     batchChatRequest := openai.CreateBatchWithUploadFileRequest{
         Endpoint:         openai.BatchEndpointChatCompletions,
         CompletionWindow: "24h",
@@ -49,35 +47,26 @@ func ProcessBatch(batchRequest models.BatchRequest) ([]models.BatchResponseItem,
         }
     }
 
-	batchStatus, err := client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create batch: %w", err)
-	}
+    batchStatus, err := p.client.CreateBatchWithUploadFile(context.Background(), batchChatRequest)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create batch: %w", err)
+    }
 
-	// Log initial batch status
-	err = db.LogBatchStatus(batchStatus)
-	if err != nil {
-		logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
-	}
+    err = db.LogBatchStatus(batchStatus)
+    if err != nil {
+        logger.WarnLogger.Printf("Failed to log initial batch status: %v", err)
+    }
 
-	responses, err := PollAndCollectBatchResponses(client, batchStatus.ID)
-	if err != nil {
-		logger.ErrorLogger.Printf("Failed to process live batch %s: %v", batchStatus.ID, err)
-		return responses, err
-	}
-
-	logger.InfoLogger.Printf("Successfully processed live batch: %s", batchStatus.ID)
-
-	return responses, err
+    return p.PollAndCollectResponses(batchStatus.ID)
 }
 
-func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]models.BatchResponseItem, error) {
+func (p *processor) PollAndCollectResponses(batchID string) ([]models.BatchResponseItem, error) {
 	ctx := context.Background()
 
 	retryIntervalSeconds := 5 * time.Second
 
 	for {
-		batchStatus, err := client.RetrieveBatch(ctx, batchID)
+		batchStatus, err := p.client.RetrieveBatch(ctx, batchID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve batch status: %w", err)
 		}
@@ -96,7 +85,7 @@ func PollAndCollectBatchResponses(client *openai.Client, batchID string) ([]mode
 				return nil, errors.New("output file ID is missing")
 			}
 
-			rawResponse, err := client.GetFileContent(ctx, *batchStatus.OutputFileID)
+			rawResponse, err := p.client.GetFileContent(ctx, *batchStatus.OutputFileID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get file content: %w", err)
 			}
