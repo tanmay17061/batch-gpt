@@ -1,27 +1,20 @@
-package services
+package batch
 
 import (
     "batch-gpt/server/models"
     "bufio"
-    "context"
     "encoding/json"
     "fmt"
-
+    "io"
     openai "github.com/sashabaranov/go-openai"
 )
 
-func GetBatchInputRequests(client *openai.Client, inputFileID string) ([]models.BatchRequestItem, error) {
-    ctx := context.Background()
-
-    content, err := client.GetFileContent(ctx, inputFileID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get file content: %w", err)
-    }
-    defer content.Close()
+func GetBatchInputRequests(rawResponse io.ReadCloser) ([]models.BatchRequestItem, error) {
+    defer rawResponse.Close()
 
     var items []models.BatchRequestItem
+    scanner := bufio.NewScanner(rawResponse)
 
-    scanner := bufio.NewScanner(content)
     for scanner.Scan() {
         var batchItem struct {
             CustomID string                        `json:"custom_id"`

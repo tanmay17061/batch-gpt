@@ -1,37 +1,62 @@
 package main
 
 import (
-	"log"
-	"os"
+    "batch-gpt/server/db"
+    "batch-gpt/server/handlers"
+    "batch-gpt/services/batch"
+    "batch-gpt/services/cache"
+    "batch-gpt/services/client"
+    "batch-gpt/services/config"
+    "log"
+    "os"
+    "strconv"
+    "time"
 
-	"batch-gpt/server/db"
-	"batch-gpt/server/handlers"
-	"batch-gpt/server/services"
-
-	"github.com/gin-gonic/gin"
+    "github.com/gin-gonic/gin"
 )
 
 func main() {
-	r := gin.Default()
+    // Initialize configurations
+    servingMode := config.NewServingMode(os.Getenv("CLIENT_SERVING_MODE"))
+    pollingConfig := config.NewPollingConfig()
 
-	db.InitMongoDB()
-	services.InitPollingParameters()
-	services.InitBatchOrchestrator()
-	services.InitCacheOrchestrator()
+    // Initialize database
+    db.InitMongoDB()
 
-	r.POST("/v1/chat/completions", handlers.HandleChatCompletions)
-	r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
-	r.GET("/v1/batches", handlers.HandleListBatches)
-
-	clientServingMode := os.Getenv("CLIENT_SERVING_MODE")
-    if clientServingMode == "" {
-        clientServingMode = "sync" // Default to synchronous mode
+    // Initialize services
+    openAIClient := client.NewOpenAIClient(os.Getenv("OPENAI_API_KEY"))
+    cacheOrch := cache.NewOrchestrator()
+    
+    // Get batch duration from env
+    collateDuration, err := strconv.Atoi(os.Getenv("COLLATE_BATCHES_FOR_DURATION_IN_MS"))
+    if err != nil {
+        collateDuration = 5000 // Default to 5 seconds if not set or invalid
     }
+    batchDuration := time.Duration(collateDuration) * time.Millisecond
 
-    services.InitServingMode(clientServingMode)
+    // Initialize batch processor and orchestrator
+    batchProcessor := batch.NewProcessor(openAIClient, pollingConfig)
+    batchOrch := batch.NewOrchestrator(
+        batchProcessor,
+        cacheOrch,
+        servingMode,
+        batchDuration,
+    )
 
-	log.Println("Server starting on :8080")
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+    // Start batch processing
+    go batchOrch.StartProcessing()
+    go batchOrch.ContinueDanglingBatches()
+
+    // Initialize router
+    r := gin.Default()
+
+    // Update handlers to use the new services
+    r.POST("/v1/chat/completions", handlers.NewChatCompletionsHandler(batchOrch, cacheOrch))
+    r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
+    r.GET("/v1/batches", handlers.HandleListBatches)
+
+    log.Println("Server starting on :8080")
+    if err := r.Run(":8080"); err != nil {
+        log.Fatalf("Failed to start server: %v", err)
+    }
 }
