@@ -70,7 +70,6 @@ func (m Model) renderBatches(batches []batchItem) string {
         batchIDStyle.Copy().Render("Status"),
     )
 
-    // Add separator line below header
     separator := lipgloss.NewStyle().
         Foreground(primaryColor).
         Render(strings.Repeat("─", m.width-4))
@@ -81,12 +80,11 @@ func (m Model) renderBatches(batches []batchItem) string {
     // Render each batch
     for i, batch := range batches {
         absoluteIndex := m.offset + i
-        style := lipgloss.NewStyle()
+        var style lipgloss.Style
         if absoluteIndex == m.cursor {
-            style = style.
-                Border(lipgloss.RoundedBorder()).
-                BorderForeground(primaryColor).
-                Padding(0, 1)
+            style = selectedBatchStyle // Use the new bold style for selected batch
+        } else {
+            style = lipgloss.NewStyle()
         }
 
         // Batch info line
@@ -99,21 +97,20 @@ func (m Model) renderBatches(batches []batchItem) string {
             statusStyle[batch.status].Render(batch.status),
         )
 
-        // Progress bar with clearer counts
         progress := renderProgressWithCounts(
-            batch.counts.Completed,
-            batch.counts.Total,
+            batch.counts.Completed, 
+            batch.counts.Total, 
             m.width-4,
         )
-
+        
         batchBlock := lipgloss.JoinVertical(
             lipgloss.Left,
             batchInfo,
             progress,
         )
-
+        
         rendered = append(rendered, style.Render(batchBlock))
     }
-
+    
     return lipgloss.JoinVertical(lipgloss.Left, rendered...)
 }

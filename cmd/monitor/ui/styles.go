@@ -15,19 +15,27 @@ var (
 
     // Styles
     titleStyle = lipgloss.NewStyle().
-        Bold(true).
-        Foreground(primaryColor).
-        BorderStyle(lipgloss.RoundedBorder()).
-        BorderForeground(primaryColor).
-        Padding(0, 1)
+            Bold(true).
+            Foreground(primaryColor).
+            BorderStyle(lipgloss.RoundedBorder()).
+            BorderForeground(primaryColor).
+            Padding(0, 1).
+            Align(lipgloss.Center)
 
     tabStyle = lipgloss.NewStyle().
         Padding(0, 1)
 
     activeTabStyle = tabStyle.Copy().
-        Foreground(primaryColor).
-        Border(lipgloss.RoundedBorder(), false, false, true, false).
-        BorderForeground(primaryColor)
+            Foreground(primaryColor).
+            Bold(true). // Make active tab bold
+            Border(lipgloss.RoundedBorder(), false, false, true, false).
+            BorderForeground(primaryColor)
+    
+    selectedBatchStyle = lipgloss.NewStyle().
+        Border(lipgloss.RoundedBorder()).
+        BorderForeground(primaryColor).
+        Bold(true). // Make selected batch bold
+        Padding(0, 1)
 
     batchIDStyle = lipgloss.NewStyle().
         Foreground(secondaryColor)

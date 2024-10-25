@@ -5,7 +5,6 @@ import (
 
 	"fmt"
 	"time"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -219,9 +218,16 @@ func (m Model) visibleBatches() []batchItem {
 }
 
 func (m Model) View() string {
-	// Build header
-	header := titleStyle.Render("🖥️📊  Batch-GPT Monitor") +
-		helpStyle.Render(time.Now().Format("15:04:05 MST"))
+    headerText := "🖥️  Batch-GPT Monitor"
+    timeWithZone := time.Now().Format("15:04:05 MST")
+    
+    header := lipgloss.NewStyle().
+        Width(m.width).
+        Align(lipgloss.Center).
+        Render(
+            titleStyle.Render(headerText) + "\n" + 
+            helpStyle.Render(timeWithZone),
+        )
 
 	// Build tabs with counts
 	var tabs []string
