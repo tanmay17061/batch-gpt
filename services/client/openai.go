@@ -1,9 +1,8 @@
 package client
 
 import (
-	"context"
-
-	openai "github.com/sashabaranov/go-openai"
+    "context"
+    openai "github.com/sashabaranov/go-openai"
 )
 
 type openAIClient struct {
@@ -24,6 +23,6 @@ func (c *openAIClient) RetrieveBatch(ctx context.Context, batchID string) (opena
     return c.client.RetrieveBatch(ctx, batchID)
 }
 
-func (c *openAIClient) GetFileContent(ctx context.Context, fileID string) (*openai.FileContent, error) {
+func (c *openAIClient) GetFileContent(ctx context.Context, fileID string) (openai.RawResponse, error) {
     return c.client.GetFileContent(ctx, fileID)
 }

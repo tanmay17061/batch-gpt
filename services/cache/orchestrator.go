@@ -4,6 +4,7 @@ import (
 	"batch-gpt/server/db"
 	"batch-gpt/server/logger"
 	"batch-gpt/server/models"
+	"batch-gpt/services/utils"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -15,7 +16,7 @@ func NewOrchestrator() Orchestrator {
 }
 
 func (co *orchestrator) GetFromCache(request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, bool) {
-    hash, err := generateRequestHash(request)
+    hash, err := utils.GenerateRequestHash(request)
     if err != nil {
         logger.ErrorLogger.Printf("Failed to generate request hash: %v", err)
         return openai.ChatCompletionResponse{}, false
@@ -47,7 +48,7 @@ func (co *orchestrator) CacheResponses(requests []models.BatchRequestItem, respo
             continue
         }
 
-        hash, err := generateRequestHash(request)
+        hash, err := utils.GenerateRequestHash(request)
         if err != nil {
             logger.ErrorLogger.Printf("Failed to generate request hash: %v", err)
             failed_caches += 1

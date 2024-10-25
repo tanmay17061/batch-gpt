@@ -44,7 +44,7 @@ func main() {
     )
 
     // Start batch processing
-    batchOrch.StartProcessing()
+    go batchOrch.StartProcessing()
     go batchOrch.ContinueDanglingBatches()
 
     // Initialize router
