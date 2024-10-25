@@ -158,10 +158,6 @@ func (bo *orchestrator) processBatch() {
     }
 }
 
-// func AddRequestToBatch(request openai.ChatCompletionRequest) <-chan BatchResult {
-//     return orchestrator.AddRequest(request)
-// }
-
 func (bo *orchestrator) ContinueDanglingBatches() {
     logger.InfoLogger.Println("ContinueDanglingBatches: Starting to process dangling batches")
     danglingBatches, err := db.GetDanglingBatches()
