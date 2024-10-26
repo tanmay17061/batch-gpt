@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Same targets as before
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
+        binary: [batch-gpt, batch-monitor]
         include:
           - binary: batch-gpt
-            path: server
+            path: server/main.go
           - binary: batch-monitor
-            path: cmd/monitor
+            path: cmd/monitor/main.go
         exclude:
           - goarch: arm64
             goos: windows
@@ -25,8 +25,11 @@ jobs:
       - uses: actions/checkout@v3
       - uses: wangyoucao577/go-release-action@v1
         with:
-          project_path: ${{ matrix.path }}
-          binary_name: ${{ matrix.binary }}
           github_token: ${{ secrets.TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
+          binary_name: ${{ matrix.binary }}
+          project_path: "./"
+          build_flags: "-o ${{ matrix.binary }}"
+          ldflags: "-s -w"
+          extra_files: LICENSE README.md
