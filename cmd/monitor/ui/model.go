@@ -2,9 +2,9 @@ package ui
 
 import (
 	"batch-gpt/server/db" // for getting batch data
-
 	"fmt"
 	"time"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -220,12 +220,12 @@ func (m Model) visibleBatches() []batchItem {
 func (m Model) View() string {
     headerText := "🖥️  Batch-GPT Monitor"
     timeWithZone := time.Now().Format("15:04:05 MST")
-    
+
     header := lipgloss.NewStyle().
         Width(m.width).
         Align(lipgloss.Center).
         Render(
-            titleStyle.Render(headerText) + "\n" + 
+            titleStyle.Render(headerText) + "\n" +
             helpStyle.Render(timeWithZone),
         )
 
