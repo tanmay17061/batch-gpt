@@ -193,7 +193,10 @@ func GetAllBatchStatuses() ([]openai.BatchResponse, error) {
     defer cancel()
 
     pipeline := mongo.Pipeline{
-        {{Key: "$sort", Value: bson.D{{Key: "batch.created_at", Value: -1}}}},
+        {{Key: "$sort", Value: bson.D{
+            {Key: "batch.created_at", Value: -1},
+            {Key: "timestamp", Value: -1}, // Adding sort by status update timestamp
+        }}},
         {{Key: "$group", Value: bson.D{
             {Key: "_id", Value: "$batch.id"},
             {Key: "batch", Value: bson.D{{Key: "$first", Value: "$batch"}}},

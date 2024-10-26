@@ -78,7 +78,8 @@ func (p *processor) PollAndCollectResponses(batchID string) ([]models.BatchRespo
             logger.WarnLogger.Printf("Failed to log batch status: %v", err)
         }
 
-        if batchStatus.Status == "completed" {
+        switch batchStatus.Status {
+        case "completed":
             if batchStatus.OutputFileID == nil {
                 return nil, errors.New("output file ID is missing")
             }
@@ -119,17 +120,17 @@ func (p *processor) PollAndCollectResponses(batchID string) ([]models.BatchRespo
             }
 
             return responses, nil
-        }
 
-        if batchStatus.Status == "failed" || batchStatus.Status == "cancelled" {
+        case "failed", "cancelled":
             return nil, fmt.Errorf("batch processing %s", batchStatus.Status)
-        }
 
-        time.Sleep(retryIntervalSeconds)
-        if retryIntervalSeconds < p.pollingConfig.GetMaxRetryInterval() {
-            retryIntervalSeconds = retryIntervalSeconds * 2
-            if retryIntervalSeconds > p.pollingConfig.GetMaxRetryInterval() {
-                retryIntervalSeconds = p.pollingConfig.GetMaxRetryInterval()
+        default:
+            time.Sleep(retryIntervalSeconds)
+            if retryIntervalSeconds < p.pollingConfig.GetMaxRetryInterval() {
+                retryIntervalSeconds = retryIntervalSeconds * 2
+                if retryIntervalSeconds > p.pollingConfig.GetMaxRetryInterval() {
+                    retryIntervalSeconds = p.pollingConfig.GetMaxRetryInterval()
+                }
             }
         }
     }
