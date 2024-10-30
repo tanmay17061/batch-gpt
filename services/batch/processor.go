@@ -79,7 +79,7 @@ func (p *processor) PollAndCollectResponses(batchID string) ([]models.BatchRespo
         }
 
         switch batchStatus.Status {
-        case "completed":
+        case "completed", "expired":
             if batchStatus.OutputFileID == nil {
                 return nil, errors.New("output file ID is missing")
             }
@@ -121,6 +121,8 @@ func (p *processor) PollAndCollectResponses(batchID string) ([]models.BatchRespo
 
             return responses, nil
 
+        
+            
         case "failed", "cancelled":
             return nil, fmt.Errorf("batch processing %s", batchStatus.Status)
 

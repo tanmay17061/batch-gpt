@@ -158,7 +158,7 @@ func GetDanglingBatches() ([]string, error) {
             continue
         }
 
-        if latestStatus.Status != "completed" && latestStatus.Status != "failed" {
+        if latestStatus.Status != "completed" && latestStatus.Status != "failed" && latestStatus.Status != "cancelled" && latestStatus.Status != "expired" {
             danglingBatches = append(danglingBatches, batchID)
         }
     }

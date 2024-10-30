@@ -88,6 +88,7 @@ const (
 	activeTab tab = iota
 	completedTab
 	failedTab
+	expiredTab
 )
 
 type Model struct {
@@ -105,7 +106,7 @@ type Model struct {
 
 func NewModel() Model {
 	return Model{
-		tabs:       []string{"Active Batches", "Completed Batches", "Failed Batches"},
+		tabs:       []string{"Active Batches", "Completed Batches", "Failed Batches", "Expired Batches"},
 		currentTab: activeTab,
 		help:       true,
 		lastUpdate: time.Now(),
@@ -139,11 +140,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, keys.Tab), key.Matches(msg, keys.Right):
-			m.currentTab = (m.currentTab + 1) % 3
+			m.currentTab = (m.currentTab + 1) % 4
 			m.cursor = 0
 			m.offset = 0
 		case key.Matches(msg, keys.Left):
-			m.currentTab = (m.currentTab - 1 + 3) % 3
+			m.currentTab = (m.currentTab - 1 + 4) % 4
 			m.cursor = 0
 			m.offset = 0
 		case key.Matches(msg, keys.Up):

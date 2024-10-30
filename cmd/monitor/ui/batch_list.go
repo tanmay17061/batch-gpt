@@ -50,7 +50,12 @@ func (m Model) filterBatches() []batchItem {
 			if b.status == "failed" {
 				filtered = append(filtered, b)
 			}
+		case expiredTab:
+            if b.status == "expired" {
+                filtered = append(filtered, b)
+            }
 		}
+		
 	}
 	return filtered
 }

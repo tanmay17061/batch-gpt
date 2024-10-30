@@ -44,6 +44,7 @@ var (
         "completed": lipgloss.NewStyle().Foreground(successColor),
         "failed":    lipgloss.NewStyle().Foreground(alertColor),
         "in_progress": lipgloss.NewStyle().Foreground(warningColor),
+        "expired":     lipgloss.NewStyle().Foreground(lipgloss.Color("213")),
     }
 
     progressBarStyle = lipgloss.NewStyle().
