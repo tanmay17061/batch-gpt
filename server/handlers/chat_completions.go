@@ -3,6 +3,7 @@ package handlers
 import (
     "batch-gpt/services/batch"
     "batch-gpt/services/cache"
+    "batch-gpt/services/config"
     "net/http"
     "github.com/gin-gonic/gin"
     openai "github.com/sashabaranov/go-openai"
@@ -11,12 +12,14 @@ import (
 type ChatCompletionsHandler struct {
     batchOrch batch.Orchestrator
     cacheOrch cache.Orchestrator
+    servingMode config.ServingMode
 }
 
-func NewChatCompletionsHandler(batchOrch batch.Orchestrator, cacheOrch cache.Orchestrator) gin.HandlerFunc {
+func NewChatCompletionsHandler(batchOrch batch.Orchestrator, cacheOrch cache.Orchestrator, servingMode config.ServingMode) gin.HandlerFunc {
     handler := &ChatCompletionsHandler{
         batchOrch: batchOrch,
         cacheOrch: cacheOrch,
+        servingMode: servingMode,
     }
     return handler.Handle
 }
@@ -28,11 +31,21 @@ func (h *ChatCompletionsHandler) Handle(c *gin.Context) {
         return
     }
 
+    // Check cache first
     if cachedResponse, found := h.cacheOrch.GetFromCache(request); found {
         c.JSON(http.StatusOK, cachedResponse)
         return
     }
 
+    // If cache-only mode and no cache hit, return error
+    if h.servingMode.IsCache() {
+        c.JSON(http.StatusNotFound, gin.H{
+            "error": "Response not found in cache and server is in cache-only mode",
+        })
+        return
+    }
+
+    // Normal processing for async/sync modes
     resultChan := h.batchOrch.AddRequest(request)
     
     select {

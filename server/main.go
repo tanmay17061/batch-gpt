@@ -43,15 +43,22 @@ func main() {
         batchDuration,
     )
 
-    // Start batch processing
-    go batchOrch.StartProcessing()
-    go batchOrch.ContinueDanglingBatches()
+    if servingMode.IsCache() {
+        // In cache mode, only process dangling batches
+        go batchOrch.ContinueDanglingBatches()
+        log.Println("Server starting in cache-only mode - processing only dangling batches")
+    } else {
+        // In sync/async mode, start regular processing and handle dangling batches
+        go batchOrch.StartProcessing()
+        go batchOrch.ContinueDanglingBatches()
+        log.Println("Server starting in", servingMode.GetMode(), "mode - processing new and dangling batches")
+    }
 
     // Initialize router
     r := gin.Default()
 
     // Update handlers to use the new services
-    r.POST("/v1/chat/completions", handlers.NewChatCompletionsHandler(batchOrch, cacheOrch))
+    r.POST("/v1/chat/completions", handlers.NewChatCompletionsHandler(batchOrch, cacheOrch, servingMode))
     r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
     r.GET("/v1/batches", handlers.HandleListBatches)
 
