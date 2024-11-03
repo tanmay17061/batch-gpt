@@ -12,12 +12,11 @@ jobs:
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
-        binary: [batch-gpt, batch-monitor]
         include:
           - binary: batch-gpt
-            path: server/main.go
-          - binary: batch-monitor
-            path: cmd/monitor/main.go
+            main_path: ./server/main.go
+          - binary: batch-monitor 
+            main_path: ./cmd/monitor/main.go
         exclude:
           - goarch: arm64
             goos: windows
@@ -29,7 +28,6 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           binary_name: ${{ matrix.binary }}
-          project_path: "./"
-          build_flags: "-o ${{ matrix.binary }}"
+          main: ${{ matrix.main_path }}
           ldflags: "-s -w"
           extra_files: LICENSE README.md
