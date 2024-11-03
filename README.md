@@ -25,9 +25,11 @@ from openai import OpenAI
 - Enhanced Reliability: Resumes processing of interrupted batches on server restart
 - Persistent Data: MongoDB integration for cross-session data retention
 - Centralized Management: View all batch statuses at once
-- Flexible Serving Modes:
+- Interactive Monitoring: Terminal-based UI tool for real-time batch status monitoring 
+- Flexible Serving Modes: 
   - Synchronous mode for immediate responses
   - Asynchronous mode for handling high-volume requests
+- Cache-only mode for offline operation without API calls
 - Secure Key Distribution: Single OpenAI key for all clients, maintained via Batch-GPT
 
 ## Limitations 🤔
@@ -112,7 +114,7 @@ You can either build the server from source (for the latest changes) or download
 The server will start on `http://localhost:8080`.
 
 ## Usage
-Note: In asynchronous mode, the server will return immediately with a submission confirmation instead of waiting for the actual response. Look at the [Advanced Settings](#advanced-settings) section to learn more about sync/async modes.
+Note: In asynchronous mode, the server will return immediately with a submission confirmation instead of waiting for the actual response. Look at the [Advanced Settings](#advanced-settings) section to learn more about sync/async/cache modes.
 
 ### Sending Chat Completion Requests
 
@@ -238,7 +240,7 @@ A Python test client is provided in the `test-python-client` directory.
 The following environment variables can be used to configure the application:
 
 - `OPENAI_API_KEY`: Your OpenAI API key (required)
-- `CLIENT_SERVING_MODE`: Set to "sync" for synchronous (default) or "async" for asynchronous serving mode
+- `CLIENT_SERVING_MODE`: Set to: "sync"/"async"/"cache"
 - `COLLATE_BATCHES_FOR_DURATION_IN_MS`: Duration to collate batches in milliseconds (default: 5000)
 - `COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS`: Maximum interval (in seconds) between polling attempts when collecting batch statistics. This value caps the exponential backoff for long-running batches. Default is 300 seconds (5 minutes) if not set.
 - `MONGO_HOST`: MongoDB server hostname (default: "localhost")
@@ -265,7 +267,29 @@ Batch-GPT supports two serving modes:
    - Ideal for high-volume scenarios where each worker remaining blocked on a response is not practical
    - Set `CLIENT_SERVING_MODE=async`
 
+3. Cache-only Mode:
+   - Cache-only mode allows the server to operate without making new API calls to OpenAI:
+   - Only serves previously cached responses
+   - Still processes any dangling batches from previous sessions
+   - Set `CLIENT_SERVING_MODE=cache`
+
 To change the serving mode, set the `CLIENT_SERVING_MODE` environment variable before starting the server.
+
+### Batch Monitor
+
+Batch-GPT includes a terminal-based monitoring tool for real-time batch status tracking:
+
+1. Start the monitor:
+   ```bash
+   ./batch-monitor
+   ```
+
+2. Features:
+   - Real-time status updates for all batches
+   - Interactive navigation with keyboard shortcuts
+   - Filtering by batch status (Active/Completed/Failed/Expired)
+   - Progress tracking for batch requests
+   - Detailed batch information display
 
 ### Batch Statistics Polling
 
@@ -277,25 +301,9 @@ export COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS=600
 ```
 This would set the maximum polling interval to 10 minutes. The actual polling interval starts smaller and increases exponentially up to this maximum value.
 
-## Development
+## Contributing
 
-### Project Structure
-
-- `/server`: Contains the main server code
-  - `/db`: Database interactions
-  - `/handlers`: HTTP request handlers
-  - `/logger`: Custom logging setup
-  - `/models`: Data models
-  - `/services`: Business logic and OpenAI interactions
-- `/local/mongo`: Docker setup for local MongoDB instance
-- `/test-python-client`: Python client for testing the server
-
-### Adding New Features
-
-1. Implement new functionality in the appropriate package under `/server`
-2. Update handlers in `/server/handlers` if adding new endpoints
-3. Modify `/server/main.go` to wire up new endpoints or services
-4. Update this README with any new setup or usage instructions
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on how to add new features, submit pull requests, and work with the codebase.
 
 ## Acknowledgements
 
