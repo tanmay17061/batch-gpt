@@ -1,110 +1,226 @@
 # Batch-GPT Documentation
 
-Batch-GPT is an efficient service that converts individual OpenAI chat completion API requests into batched requests, optimizing processing and potentially reducing costs for high-volume applications.
+Batch-GPT is a jump-server that converts individual OpenAI chat completion API requests into batched requests, optimizing processing and reducing costs through OpenAI's Batch API.
 
 ## Table of Contents
 
 1. [Introduction](#introduction)
 2. [Features](#features)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [API Reference](#api-reference)
-6. [Configuration](#configuration)
-7. [Performance](#performance)
-8. [Troubleshooting](#troubleshooting)
-9. [Contributing](#contributing)
-10. [License](#license)
+3. [Getting Started](#getting-started)
+4. [Architecture](#architecture)
+5. [Usage Guide](#usage-guide)
+6. [Advanced Features](#advanced-features)
+7. [Configuration](#configuration)
+8. [Monitoring](#monitoring)
+9. [API Reference](#api-reference)
+10. [Troubleshooting](#troubleshooting)
 
 ## Introduction
 
-Batch-GPT acts as a middleware between your application and OpenAI's API. It collects individual chat completion requests over a short time window, bundles them into a single batch request, and then sends this batch to OpenAI. This approach can lead to significant improvements in throughput and potential cost savings for applications that generate a high volume of requests.
+Batch-GPT enables seamless integration with OpenAI's Batch API by acting as a drop-in replacement for standard OpenAI API endpoints. It intelligently collects and batches requests, providing significant cost savings while maintaining compatibility with existing OpenAI clients.
+
+Integration is as simple as:
+```diff
+from openai import OpenAI
+- client = OpenAI(api_key="sk-...")
++ client = OpenAI(api_key="dummy_openai_api_key", base_url="http://batch-gpt")
+```
 
 ## Features
 
-- Automatic batching of chat completion requests
-- Compatible with OpenAI's API structure
-- Configurable batch window duration
-- Efficient handling of large volumes of requests
-- Potential for reduced API costs
-- Easy integration with existing applications
+- **Cost Optimization**
+  - Up to 50% savings using OpenAI's Batch API
+  - Automatic request caching for zero-cost repeat queries
+  
+- **Reliability & Management**
+  - Persistent data storage with MongoDB
+  - Recovery of interrupted batches
+  - Real-time batch status monitoring
+  
+- **Flexible Operation Modes**
+  - Synchronous mode for immediate responses
+  - Asynchronous mode for high-volume scenarios
+  - Cache-only mode for offline operation
+  
+- **Security & Integration**
+  - Single OpenAI key management
+  - Compatible with any OpenAI-compliant client
+  - Cross-session data persistence
 
-## Installation
+## Getting Started
 
-To install Batch-GPT, follow these steps:
+### Prerequisites
+- Go 1.23.0 or later
+- Docker and Docker Compose
+- MongoDB (included in docker-compose setup)
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/batch-gpt.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd batch-gpt
-   ```
-3. Install dependencies:
-   ```
-   go mod tidy
-   ```
-4. Set up the SQLite database:
-   ```
-   ./setup_db.sh
+### Quick Start
+
+1. Download pre-compiled binaries from [Releases](https://github.com/tanmay17061/batch-gpt/releases)
+
+2. Set up MongoDB:
+   ```bash
+   cd local/mongo
+   docker-compose up -d
    ```
 
-## Usage
+3. Configure environment variables:
+   ```bash
+   export OPENAI_API_KEY=your_openai_api_key
+   export COLLATE_BATCHES_FOR_DURATION_IN_MS=5000
+   export MONGO_HOST=localhost
+   export MONGO_PORT=27017
+   export MONGO_USER=admin
+   export MONGO_PASSWORD=password
+   export MONGO_DATABASE=batchgpt
+   ```
 
-To start the Batch-GPT server:
+4. Start the server:
+   ```bash
+   ./batch-gpt
+   ```
 
+## Architecture
+
+Batch-GPT consists of several key components:
+
+- **Server Core**: Main server handling request routing and processing
+- **Batch Orchestrator**: Manages request batching and processing
+- **Cache System**: Handles response caching and retrieval
+- **Monitor Tool**: Terminal-based UI for batch status monitoring
+- **MongoDB Backend**: Persistent storage for batches and cache
+
+## Usage Guide
+
+### Basic Request Flow
+1. Client sends request to Batch-GPT
+2. Request is checked against cache
+3. If not cached:
+   - Request is added to current batch
+   - Batch is processed when full or timer expires
+4. Response is cached and returned
+
+### Using with Python Client
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="dummy_openai_api_key",
+    base_url="http://localhost:8080/v1"
+)
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
 ```
-go run server/main.go
-```
 
-The server will start on `localhost:8080`. You can now send requests to this server as if you were interacting with the OpenAI API directly.
+## Advanced Features
 
-Example using curl:
+### Serving Modes
 
+1. **Synchronous Mode** (Default)
+   ```bash
+   export CLIENT_SERVING_MODE=sync
+   ```
+   - Blocks until response is available
+   - Suitable for low-volume scenarios
+
+2. **Asynchronous Mode**
+   ```bash
+   export CLIENT_SERVING_MODE=async
+   ```
+   - Returns immediately with submission confirmation
+   - Ideal for high-volume applications
+
+3. **Cache-Only Mode**
+   ```bash
+   export CLIENT_SERVING_MODE=cache
+   ```
+   - Serves only cached responses
+   - Processes pending batches from previous sessions
+
+### Batch Monitor
+
+Launch the monitoring tool:
 ```bash
-curl http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
+./batch-monitor
 ```
 
-## API Reference
-
-Batch-GPT mimics OpenAI's API endpoints. The main endpoint is:
-
-- POST `/v1/chat/completions`: Accept chat completion requests
-
-Additional endpoints:
-
-- GET `/get-batch-status`: Retrieve the status of a specific batch
-
-For detailed API documentation, refer to [OpenAI's API Reference](https://platform.openai.com/docs/api-reference/chat).
+Features:
+- Real-time batch status updates
+- Interactive navigation
+- Status filtering
+- Progress tracking
 
 ## Configuration
 
-Batch-GPT can be configured using environment variables:
+### Environment Variables
 
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `COLLATE_BATCHES_FOR_DURATION_IN_MS`: The duration to collect requests before sending a batch (default: 5000ms)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key | Required |
+| `CLIENT_SERVING_MODE` | Service mode (sync/async/cache) | sync |
+| `COLLATE_BATCHES_FOR_DURATION_IN_MS` | Batch collection window | 5000 |
+| `COLLECT_BATCH_STATS_POLLING_MAX_INTERVAL_SECONDS` | Max polling interval | 300 |
+| `MONGO_*` | MongoDB configuration | See quick start |
 
-## Performance
+## Monitoring
 
-Batch-GPT is designed to handle high volumes of requests efficiently. In testing, it has shown significant improvements in throughput compared to individual API calls, especially for applications generating 50+ requests per second.
+### Status Endpoints
+
+- GET `/v1/batches/{batch_id}`: Get specific batch status
+- GET `/v1/batches`: List all batches
+
+### Monitor UI
+
+The terminal-based monitor provides:
+- Batch status overview
+- Request counts
+- Processing progress
+- Error tracking
+
+## API Reference
+
+### Main Endpoints
+
+- POST `/v1/chat/completions`: Chat completion requests
+- GET `/v1/batches/{batch_id}`: Batch status
+- GET `/v1/batches`: List batches
+
+All endpoints maintain OpenAI API compatibility.
 
 ## Troubleshooting
 
-Common issues and their solutions:
+### Common Issues
 
-1. **Connection refused**: Ensure the server is running and you're connecting to the correct port.
-2. **API key errors**: Verify that your OpenAI API key is correctly set in the environment variables.
-3. **Batch processing delays**: If responses seem delayed, check the `COLLATE_BATCHES_FOR_DURATION_IN_MS` setting. A lower value will result in more frequent, smaller batches.
+1. **Long Response Times**
+   - Expected with OpenAI's Batch API (24h SLA)
+   - Consider sync/async mode based on needs
+
+2. **MongoDB Connection**
+   - Verify MongoDB is running
+   - Check connection settings
+
+3. **Missing Responses**
+   - Check batch status with monitor
+   - Verify cache configuration
+
+### Support
+
+For issues and questions:
+1. Check existing GitHub issues
+2. Review the troubleshooting guide
+3. Open a new issue with detailed information
 
 ## Contributing
 
-We welcome contributions to Batch-GPT! Please see our [Contributing Guide](CONTRIBUTING.md) for more details on how to get started.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Code style guide
+- Pull request process
+- Project structure
 
 ## License
 
-Batch-GPT is released under the [Apache License 2.0](LICENSE).
+Batch-GPT is licensed under the [Apache License 2.0](LICENSE).
