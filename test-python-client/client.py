@@ -44,11 +44,11 @@ def chat_completion(client, content):
 def status_single_batch(client, batch_id):
     try:
         response = client.batches.retrieve(batch_id)
-        print(f"Batch ID: {response.batch.id}")
-        print(f"Status: {response.batch.status}")
-        print(f"Created At: {format_timestamp(response.batch.created_at)}")
-        print(f"Expires At: {format_timestamp(response.batch.expires_at)}")
-        print(f"Request Counts: {response.batch.request_counts}")
+        print(f"Batch ID: {response.id}")
+        print(f"Status: {response.status}")
+        print(f"Created At: {format_timestamp(response.created_at)}")
+        print(f"Expires At: {format_timestamp(response.expires_at)}")
+        print(f"Request Counts: {response.request_counts}")
     except Exception as e:
         print(f"An error occurred: {e}")
 
@@ -91,9 +91,38 @@ def status_all_batches(client, status_filter=None):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+def cancel_batch(client, batch_id):
+    try:
+        response = client.batches.cancel(batch_id)
+        print(f"Batch ID: {response.id}")
+        print(f"Status: {response.status}")
+        print(f"Created At: {format_timestamp(response.created_at)}")
+        print(f"Cancelled At: {format_timestamp(response.cancelled_at)}")
+        print(f"Request Counts: {response.request_counts}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 def main():
-    parser = argparse.ArgumentParser(description="Interact with the batch-gpt server.")
-    parser.add_argument("--api", choices=['chat_completions', 'status_single_batch', 'status_all_batches'],
+    parser = argparse.ArgumentParser(description="Interact with the batch-gpt server.", formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+    Examples:
+      # Send a chat completion request
+      python client.py --api chat_completions --content "What is the weather like?"
+
+      # Check status of a specific batch
+      python client.py --api status_single_batch --batch_id batch-67890
+
+      # List all batches
+      python client.py --api status_all_batches
+
+      # List only completed batches
+      python client.py --api status_all_batches --status_filter completed
+
+      # Cancel a batch
+      python client.py --api cancel_batch --batch_id batch-67890
+            """
+        )
+    parser.add_argument("--api", choices=['chat_completions', 'status_single_batch', 'status_all_batches', 'cancel_batch'],
                         required=True, help="The API endpoint to call.")
     parser.add_argument("--content", help="The content for chat completion (required for chat_completions).")
     parser.add_argument("--batch_id", help="The batch ID (required for status_single_batch).")
@@ -119,6 +148,11 @@ def main():
         status_single_batch(client, args.batch_id)
     elif args.api == 'status_all_batches':
         status_all_batches(client, args.status_filter)
+    if args.api == 'cancel_batch':
+        if not args.batch_id:
+            print("Error: --batch_id is required for cancel_batch.")
+            sys.exit(1)
+        cancel_batch(client, args.batch_id)
 
 if __name__ == "__main__":
     main()

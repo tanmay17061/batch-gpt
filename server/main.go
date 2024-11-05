@@ -1,18 +1,18 @@
 package main
 
 import (
-    "batch-gpt/server/db"
-    "batch-gpt/server/handlers"
-    "batch-gpt/services/batch"
-    "batch-gpt/services/cache"
-    "batch-gpt/services/client"
-    "batch-gpt/services/config"
-    "log"
-    "os"
-    "strconv"
-    "time"
+	"batch-gpt/server/db"
+	"batch-gpt/server/handlers"
+	"batch-gpt/services/batch"
+	"batch-gpt/services/cache"
+	"batch-gpt/services/client"
+	"batch-gpt/services/config"
+	"log"
+	"os"
+	"strconv"
+	"time"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
     // Initialize services
     openAIClient := client.NewOpenAIClient(os.Getenv("OPENAI_API_KEY"))
     cacheOrch := cache.NewOrchestrator()
-    
+
     // Get batch duration from env
     collateDuration, err := strconv.Atoi(os.Getenv("COLLATE_BATCHES_FOR_DURATION_IN_MS"))
     if err != nil {
@@ -57,10 +57,13 @@ func main() {
     // Initialize router
     r := gin.Default()
 
-    // Update handlers to use the new services
     r.POST("/v1/chat/completions", handlers.NewChatCompletionsHandler(batchOrch, cacheOrch, servingMode))
     r.GET("/v1/batches/:batch_id", handlers.HandleRetrieveBatch)
     r.GET("/v1/batches", handlers.HandleListBatches)
+    r.POST("/v1/batches/:batch_id/cancel", func(c *gin.Context) {
+            c.Set("openAIClient", openAIClient)
+            handlers.HandleCancelBatch(c)
+        })
 
     log.Println("Server starting on :8080")
     if err := r.Run(":8080"); err != nil {
