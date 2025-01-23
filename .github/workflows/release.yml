@@ -15,13 +15,19 @@ jobs:
         include:
           - binary: batch-gpt
             main_path: ./server/main.go
-          # - binary: batch-monitor 
+          # - binary: batch-monitor
           #   main_path: ./cmd/monitor/main.go
         exclude:
           - goarch: arm64
             goos: windows
     steps:
       - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23.0"
+
       - uses: wangyoucao577/go-release-action@v1
         with:
           github_token: ${{ secrets.TOKEN }}
@@ -31,3 +37,4 @@ jobs:
           main: ${{ matrix.main_path }}
           ldflags: "-s -w"
           extra_files: LICENSE README.md
+          pre_command: go mod tidy
