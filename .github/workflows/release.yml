@@ -8,6 +8,9 @@ jobs:
   releases-matrix:
     name: Release Go Binary
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./batch-gpt
     strategy:
       matrix:
         goos: [linux, windows, darwin]
@@ -26,7 +29,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.23.0'
       
       - name: Display working directory and files
         run: |
@@ -39,8 +42,10 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           binary_name: ${{ matrix.binary }}
-          project_path: "."  # Set the project root directory
+          project_path: ./batch-gpt  # Path to the directory containing go.mod
           main: ${{ matrix.main_path }}
           ldflags: "-s -w"
           extra_files: LICENSE README.md
-          pre_command: go mod tidy
+          pre_command: |
+            go mod tidy
+            go mod verify
