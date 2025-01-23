@@ -15,8 +15,8 @@ jobs:
         include:
           - binary: batch-gpt
             main_path: ./server/main.go
-          - binary: batch-monitor 
-            main_path: ./cmd/monitor/main.go
+          # - binary: batch-monitor 
+          #   main_path: ./cmd/monitor/main.go
         exclude:
           - goarch: arm64
             goos: windows
